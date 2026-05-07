@@ -1,7 +1,7 @@
 module "document-s3-bucket" {
   source  = "terraform-aws-modules/s3-bucket/aws"
   version = "5.12.0"
-  bucket = var.document_s3_bucket_name
+  bucket  = var.document_s3_bucket_name
 
   server_side_encryption_configuration = {
     rule = {
