@@ -1,4 +1,4 @@
-resource "aws_iam_role" "DocumentLambdaRole" { #the identity (Lambda) itself, with the role attached
+resource "aws_iam_role" "document_lambda" { #the identity (Lambda) itself, with the role attached
   name = var.document_lambda_role_name
 
   assume_role_policy = jsonencode({
@@ -16,8 +16,8 @@ resource "aws_iam_role" "DocumentLambdaRole" { #the identity (Lambda) itself, wi
   })
 }
 
-resource "aws_iam_role_policy" "DocumentLambdaPolicy" { # what the identity is allowed to do
-  role = aws_iam_role.DocumentLambdaRole.id
+resource "aws_iam_role_policy" "document_lambda" { # what the identity is allowed to do
+  role = aws_iam_role.document_lambda.id
   name = var.document_lambda_policy_name
 
   policy = jsonencode({
@@ -32,7 +32,7 @@ resource "aws_iam_role_policy" "DocumentLambdaPolicy" { # what the identity is a
           "s3:DeleteObject"
         ],
 
-        Resource = "${module.document-s3-bucket.s3_bucket_arn}/*"
+        Resource = "${module.document_s3_bucket.s3_bucket_arn}/*"
       },
       { # Adding CloudWatch Logs to be able to debug Lambda function
         Sid    = "CloudWatchLogs"

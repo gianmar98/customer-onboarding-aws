@@ -8,12 +8,12 @@ terraform {
   }
 }
 provider "aws" {
-  region = "us-east-1"
+  region = var.project_region
   default_tags {
     tags = {
-      Project     = "ACICapstone1"
-      Environment = "dev"
-      Owner       = "Giancarlo"
+      Project     = var.project_name
+      Environment = var.project_region
+      Owner       = var.project_owner
     }
   }
 }

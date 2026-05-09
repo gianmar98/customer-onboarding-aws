@@ -1,5 +1,27 @@
 // CONTAINER FOR ALL VARIABLES
 
+# PROJECT MAIN ---------------------------------------------------------------------------------
+variable "project_region" {
+  description = "Region the project will be created on"
+  type = string
+}
+
+variable "project_environment" {
+  description = "Environment name of the project (ex: dev)"
+  type = string
+}
+
+variable "project_name" {
+  description = "Name of the project so all resources get tagged"
+  type = string
+}
+
+variable "project_owner" {
+  description = "Name of project owner so all resources get tagged"
+  type = string
+}
+#-------------------------------------------------------------------------------------
+
 # S3 ---------------------------------------------------------------------------------
 variable "document_s3_bucket_name" {
   description = "This is the name of the document S3 bucket for the project"
@@ -25,7 +47,7 @@ variable "customer_metadata_dynamo_db_table_name" {
   type        = string
 }
 
-variable "customer_metadata_table_hashPartition_key" {
+variable "customer_metadata_table_hash_partition_key" {
   description = "Hash/Partition Key of my customer metadata table"
   type        = string
 }
@@ -88,4 +110,27 @@ variable "customer_metadata_table_target_scaling_val" {
     error_message = "Target scaling value must be between 1 and 100."
   }
 }
+# ---------------------------------------------------------------------------------
+
+
+
+# SNS Topic ---------------------------------------------------------------------------------
+
+variable "app_notification_sns_name" {
+  description = "Name of Application Notification SNS Topic"
+  type        = string
+}
+
+variable "app_notification_kms_key" {
+  description = "Master key (default) for SNS from KMS"
+  type        = string
+}
+
+variable "app_notification_email_endpoint" {
+  description = "Email endpoint to send subscription for SNS topic"
+  type        = string
+}
+
+
+
 # ---------------------------------------------------------------------------------

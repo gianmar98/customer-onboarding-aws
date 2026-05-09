@@ -1,19 +1,19 @@
-module "CustomerMetadataTable-dynamodb-table" {
+module "customer_metadata_table" {
   source  = "terraform-aws-modules/dynamodb-table/aws"
   version = "5.5.0"
 
   name     = var.customer_metadata_dynamo_db_table_name
-  hash_key = var.customer_metadata_table_hashPartition_key #Partition Key
+  hash_key = var.customer_metadata_table_hash_partition_key #Partition Key
   #range_key = "" #Sort Key not required
 
   attributes = [
     {
-      name = var.customer_metadata_table_hashPartition_key #Partition Key
-      type = "S"                                           # String
+      name = var.customer_metadata_table_hash_partition_key #Partition Key
+      type = "S"                                            # String
     }
   ]
-  billing_mode   = "PROVISIONED" #Capacity Mode
-  table_class = var.customer_metadata_table_class
+  billing_mode = "PROVISIONED" #Capacity Mode
+  table_class  = var.customer_metadata_table_class
 
   read_capacity  = var.customer_metadata_table_RCU
   write_capacity = var.customer_metadata_table_WCU
