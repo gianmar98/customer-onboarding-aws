@@ -3,22 +3,22 @@
 # PROJECT MAIN ---------------------------------------------------------------------------------
 variable "project_region" {
   description = "Region the project will be created on"
-  type = string
+  type        = string
 }
 
 variable "project_environment" {
   description = "Environment name of the project (ex: dev)"
-  type = string
+  type        = string
 }
 
 variable "project_name" {
   description = "Name of the project so all resources get tagged"
-  type = string
+  type        = string
 }
 
 variable "project_owner" {
   description = "Name of project owner so all resources get tagged"
-  type = string
+  type        = string
 }
 #-------------------------------------------------------------------------------------
 
@@ -53,11 +53,12 @@ variable "customer_metadata_table_hash_partition_key" {
 }
 
 variable "customer_metadata_table_class" {
-  description = "Class for customer metadata table"
+  description = "Storage class for the customer metadata DynamoDB table. Allowed: STANDARD, STANDARD_INFREQUENT_ACCESS."
   type        = string
+  default     = "STANDARD"
   validation {
-    condition     = var.customer_metadata_table_class == "STANDARD"
-    error_message = "Metadata class must be 'STANDARD' all caps"
+    condition     = contains(["STANDARD", "STANDARD_INFREQUENT_ACCESS"], var.customer_metadata_table_class)
+    error_message = "customer_metadata_table_class must be one of: STANDARD, STANDARD_INFREQUENT_ACCESS."
   }
 }
 
