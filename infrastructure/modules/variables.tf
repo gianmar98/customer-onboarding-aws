@@ -1,61 +1,40 @@
-// CONTAINER FOR ALL VARIABLES
-
-# PROJECT MAIN ---------------------------------------------------------------------------------
-variable "project_region" {
-  description = "Region the project will be created on"
-  type        = string
-}
-
-variable "project_environment" {
-  description = "Environment name of the project (ex: dev)"
-  type        = string
-}
-
-variable "project_name" {
-  description = "Name of the project so all resources get tagged"
-  type        = string
-}
-
-variable "project_owner" {
-  description = "Name of project owner so all resources get tagged"
-  type        = string
-}
-#-------------------------------------------------------------------------------------
-
 # S3 ---------------------------------------------------------------------------------
 variable "document_s3_bucket_name" {
-  description = "This is the name of the document S3 bucket for the project"
+  description = "Name of the document S3 bucket"
   type        = string
 }
-#-------------------------------------------------------------------------------------
 
-# Lambda ---------------------------------------------------------------------------------
+# variable "encryption_enabled_backend" {
+#   description = "Enable encryption on s3 bucket"
+#   type = bool
+# }
+
+# Lambda IAM -------------------------------------------------------------------------
 variable "document_lambda_role_name" {
-  description = "Role of Lambda to r/w/delete with policy attached"
+  description = "Name of the Lambda execution role"
   type        = string
 }
+
 variable "document_lambda_policy_name" {
-  description = "Policy to be attached to lambda function that it can read, write, and delete objects from the document bucket"
+  description = "Name of the inline policy attached to the Lambda execution role"
   type        = string
 }
 
-#--------------------------------------------------------------------------------------
-
-# DynamoDB ---------------------------------------------------------------------------------
+# DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
-  description = "Name of my Customer Metadata Table"
+  description = "Name of the customer metadata DynamoDB table"
   type        = string
 }
 
 variable "customer_metadata_table_hash_partition_key" {
-  description = "Hash/Partition Key of my customer metadata table"
+  description = "Hash/Partition key of the customer metadata table"
   type        = string
 }
 
 variable "customer_metadata_table_class" {
   description = "Storage class for the customer metadata DynamoDB table. Allowed: STANDARD, STANDARD_INFREQUENT_ACCESS."
   type        = string
-  default     = "STANDARD"
+  # default     = "STANDARD"
   validation {
     condition     = contains(["STANDARD", "STANDARD_INFREQUENT_ACCESS"], var.customer_metadata_table_class)
     error_message = "customer_metadata_table_class must be one of: STANDARD, STANDARD_INFREQUENT_ACCESS."
@@ -63,7 +42,7 @@ variable "customer_metadata_table_class" {
 }
 
 variable "customer_metadata_table_RCU" {
-  description = "Read Capacity Units for customer metadata dynamoDB table"
+  description = "Read Capacity Units for the customer metadata table"
   type        = number
   validation {
     condition     = var.customer_metadata_table_RCU >= 2
@@ -72,7 +51,7 @@ variable "customer_metadata_table_RCU" {
 }
 
 variable "customer_metadata_table_WCU" {
-  description = "Write Capacity Units for customer metadata dynamoDB table"
+  description = "Write Capacity Units for the customer metadata table"
   type        = number
   validation {
     condition     = var.customer_metadata_table_WCU >= 2
@@ -81,12 +60,12 @@ variable "customer_metadata_table_WCU" {
 }
 
 variable "customer_metadata_table_autoscaling_enabled" {
-  description = "Bool to enable table auto scaling or not"
+  description = "Enable autoscaling on the customer metadata table"
   type        = bool
 }
 
 variable "customer_metadata_table_min_RWcapacity" {
-  description = "Minimum capacity of autoscaling for customer metadata table"
+  description = "Minimum autoscaling capacity for the customer metadata table"
   type        = number
   validation {
     condition     = var.customer_metadata_table_min_RWcapacity >= 2
@@ -95,7 +74,7 @@ variable "customer_metadata_table_min_RWcapacity" {
 }
 
 variable "customer_metadata_table_max_RWcapacity" {
-  description = "Maximum capacity of autoscaling for customer metadata table"
+  description = "Maximum autoscaling capacity for the customer metadata table"
   type        = number
   validation {
     condition     = var.customer_metadata_table_max_RWcapacity <= 20
@@ -111,27 +90,19 @@ variable "customer_metadata_table_target_scaling_val" {
     error_message = "Target scaling value must be between 1 and 100."
   }
 }
-# ---------------------------------------------------------------------------------
 
-
-
-# SNS Topic ---------------------------------------------------------------------------------
-
+# SNS --------------------------------------------------------------------------------
 variable "app_notification_sns_name" {
-  description = "Name of Application Notification SNS Topic"
+  description = "Name of the application notifications SNS topic"
   type        = string
 }
 
 variable "app_notification_kms_key" {
-  description = "Master key (default) for SNS from KMS"
+  description = "KMS master key id/alias used to encrypt the SNS topic"
   type        = string
 }
 
 variable "app_notification_email_endpoint" {
-  description = "Email endpoint to send subscription for SNS topic"
+  description = "Email address subscribed to the SNS topic (requires manual confirmation)"
   type        = string
 }
-
-
-
-# ---------------------------------------------------------------------------------

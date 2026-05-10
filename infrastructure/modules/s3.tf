@@ -11,6 +11,7 @@ module "document_s3_bucket" {
     }
   }
 
+
   #BLOCK PUBLIC ACCESS IS DEFAULT
 }
 

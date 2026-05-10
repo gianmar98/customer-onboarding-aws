@@ -1,0 +1,47 @@
+terraform {
+  required_version = ">= 1.10.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.project_region
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.project_environment
+      Owner       = var.project_owner
+      ManagedBy   = "Terraform"
+    }
+  }
+
+
+}
+
+module "document_backend" {
+  source = "../../modules"
+
+  document_s3_bucket_name = var.document_s3_bucket_name
+
+  document_lambda_role_name   = var.document_lambda_role_name
+  document_lambda_policy_name = var.document_lambda_policy_name
+
+  customer_metadata_dynamo_db_table_name      = var.customer_metadata_dynamo_db_table_name
+  customer_metadata_table_hash_partition_key  = var.customer_metadata_table_hash_partition_key
+  customer_metadata_table_class               = var.customer_metadata_table_class
+  customer_metadata_table_RCU                 = var.customer_metadata_table_RCU
+  customer_metadata_table_WCU                 = var.customer_metadata_table_WCU
+  customer_metadata_table_autoscaling_enabled = var.customer_metadata_table_autoscaling_enabled
+  customer_metadata_table_min_RWcapacity      = var.customer_metadata_table_min_RWcapacity
+  customer_metadata_table_max_RWcapacity      = var.customer_metadata_table_max_RWcapacity
+  customer_metadata_table_target_scaling_val  = var.customer_metadata_table_target_scaling_val
+
+  app_notification_sns_name       = var.app_notification_sns_name
+  app_notification_kms_key        = var.app_notification_kms_key
+  app_notification_email_endpoint = var.app_notification_email_endpoint
+
+}
