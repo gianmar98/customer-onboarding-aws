@@ -1,4 +1,4 @@
-resource "aws_iam_role" "document_lambda" { #the identity (Lambda) itself, with the role attached
+resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, with the role attached
   name = var.document_lambda_role_name
 
   assume_role_policy = jsonencode({
@@ -16,8 +16,8 @@ resource "aws_iam_role" "document_lambda" { #the identity (Lambda) itself, with 
   })
 }
 
-resource "aws_iam_role_policy" "document_lambda" { # what the identity is allowed to do
-  role = aws_iam_role.document_lambda.id
+resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is allowed to do
+  role = aws_iam_role.document_lambda_role.id
   name = var.document_lambda_policy_name
 
   policy = jsonencode({
@@ -33,6 +33,23 @@ resource "aws_iam_role_policy" "document_lambda" { # what the identity is allowe
         ],
 
         Resource = "${var.document_s3_bucket_arn}/*"
+      },
+      { # Write and update items to the newly created DynamoDB table.
+        Sid    = "DynamoDBAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ],
+        Resource = var.dynamodb_metadata_table_arn
+      },
+      { # Publish to the newly created SNS Topic.
+        Sid    = "SNSTopicAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "sns:Publish",
+        ],
+        Resource = var.sns_topic_arn
       },
       { # Adding CloudWatch Logs to be able to debug Lambda function
         Sid    = "CloudWatchLogs"
