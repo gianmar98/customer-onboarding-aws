@@ -1,39 +1,39 @@
 output "document_bucket_name" {
   description = "Name of the document S3 bucket"
-  value       = module.document_backend.document_bucket_name
+  value       = module.document_s3_bucket.document_bucket_name
 }
 
 output "document_bucket_arn" {
   description = "ARN of the document S3 bucket"
-  value       = module.document_backend.document_bucket_arn
+  value       = module.document_s3_bucket.document_bucket_arn
 }
 
 output "customer_metadata_table_name" {
   description = "Name of the CustomerMetadata DynamoDB table"
-  value       = module.document_backend.customer_metadata_table_name
+  value       = module.customer_metadata_dynamo_db_table.customer_metadata_table_name
 }
 
 output "customer_metadata_table_arn" {
   description = "ARN of the CustomerMetadata DynamoDB table"
-  value       = module.document_backend.customer_metadata_table_arn
+  value       = module.customer_metadata_dynamo_db_table.customer_metadata_table_arn
 }
 
 output "document_lambda_role_arn" {
   description = "ARN of the Lambda execution role"
-  value       = module.document_backend.document_lambda_role_arn
+  value       = module.document_lambda.document_lambda_role_arn
 }
 
 output "document_lambda_role_name" {
   description = "Name of the Lambda execution role"
-  value       = module.document_backend.document_lambda_role_name
+  value       = module.document_lambda.document_lambda_role_name
 }
 
 output "sns_topic_arn" {
   description = "ARN of the application notifications SNS topic"
-  value       = module.document_backend.sns_topic_arn
+  value       = module.app_notification_sns.sns_topic_arn
 }
 
 output "sns_topic_name" {
   description = "Name of the application notifications SNS topic"
-  value       = module.document_backend.sns_topic_name
+  value       = module.app_notification_sns.sns_topic_name
 }

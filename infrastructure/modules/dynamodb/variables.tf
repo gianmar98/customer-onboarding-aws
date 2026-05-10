@@ -1,25 +1,3 @@
-# S3 ---------------------------------------------------------------------------------
-variable "document_s3_bucket_name" {
-  description = "Name of the document S3 bucket"
-  type        = string
-}
-
-# variable "encryption_enabled_backend" {
-#   description = "Enable encryption on s3 bucket"
-#   type = bool
-# }
-
-# Lambda IAM -------------------------------------------------------------------------
-variable "document_lambda_role_name" {
-  description = "Name of the Lambda execution role"
-  type        = string
-}
-
-variable "document_lambda_policy_name" {
-  description = "Name of the inline policy attached to the Lambda execution role"
-  type        = string
-}
-
 # DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
   description = "Name of the customer metadata DynamoDB table"
@@ -89,20 +67,4 @@ variable "customer_metadata_table_target_scaling_val" {
     condition     = var.customer_metadata_table_target_scaling_val >= 1 && var.customer_metadata_table_target_scaling_val <= 100
     error_message = "Target scaling value must be between 1 and 100."
   }
-}
-
-# SNS --------------------------------------------------------------------------------
-variable "app_notification_sns_name" {
-  description = "Name of the application notifications SNS topic"
-  type        = string
-}
-
-variable "app_notification_kms_key" {
-  description = "KMS master key id/alias used to encrypt the SNS topic"
-  type        = string
-}
-
-variable "app_notification_email_endpoint" {
-  description = "Email address subscribed to the SNS topic (requires manual confirmation)"
-  type        = string
 }

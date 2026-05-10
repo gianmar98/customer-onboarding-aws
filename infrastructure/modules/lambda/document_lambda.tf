@@ -32,7 +32,7 @@ resource "aws_iam_role_policy" "document_lambda" { # what the identity is allowe
           "s3:DeleteObject"
         ],
 
-        Resource = "${module.document_s3_bucket.s3_bucket_arn}/*"
+        Resource = "${var.document_s3_bucket_arn}/*"
       },
       { # Adding CloudWatch Logs to be able to debug Lambda function
         Sid    = "CloudWatchLogs"

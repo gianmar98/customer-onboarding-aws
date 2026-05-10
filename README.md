@@ -22,25 +22,38 @@ All resources deploy to `us-east-1`.
 ```
 .
 ├── infrastructure/
-│   ├── modules/                  # Shared module — all real Terraform
-│   │   ├── main.tf                 # required_providers (no provider block)
-│   │   ├── variables.tf            # module inputs + validation
-│   │   ├── outputs.tf              # exported ARNs / names
-│   │   ├── s3.tf                   # document bucket + TLS-only policy
-│   │   ├── dynamodb.tf             # customer metadata table
-│   │   ├── document_lambda.tf      # Lambda IAM role + policy
-│   │   └── sns.tf                  # notifications topic + email sub
+│   ├── modules/
+│   │   ├── s3/                # Document bucket + TLS-only policy
+│   │   │   ├── s3.tf
+│   │   │   ├── variables.tf
+│   │   │   ├── outputs.tf
+│   │   │   └── README.md
+│   │   ├── dynamodb/          # CustomerMetadataTable
+│   │   │   ├── dynamodb.tf
+│   │   │   ├── variables.tf
+│   │   │   ├── outputs.tf
+│   │   │   └── README.md
+│   │   ├── lambda/            # Lambda IAM role + inline policy
+│   │   │   ├── document_lambda.tf
+│   │   │   ├── variables.tf
+│   │   │   ├── outputs.tf
+│   │   │   └── README.md
+│   │   └── sns/               # ApplicationNotifications topic + email sub
+│   │       ├── sns.tf
+│   │       ├── variables.tf
+│   │       ├── outputs.tf
+│   │       └── README.md
 │   └── envs/
-│       └── dev/                  # provider config + module call + dev tfvars
-│           ├── backend.tf          # state at envs/dev/terraform.tfstate
-│           ├── main.tf             # module "document_backend" { source = "../../modules" }
-│           ├── variables.tf        # pass-through declarations
-│           ├── outputs.tf
-│           └── terraform.tfvars    # gitignored
-└── frontend/                  # (placeholder — not yet implemented)
+│       └── dev/
+│           ├── backend.tf       # state at envs/dev/terraform.tfstate
+│           ├── main.tf          # composes all 4 sub-modules
+│           ├── variables.tf     # pass-through declarations
+│           ├── outputs.tf       # forwards each sub-module's outputs
+│           └── terraform.tfvars # gitignored
+└── frontend/                # (placeholder — not yet implemented)
 ```
 
-Only `dev` exists today. A `prod` env can be added by copying the `dev/` directory, swapping the backend `key`, and supplying its own `terraform.tfvars`.
+The structure is **per-resource sub-modules composed by the env**. Only `dev` exists today; a `prod` env can be added later by copying `dev/`, swapping the backend `key`, and supplying its own `terraform.tfvars`.
 
 ## Common Commands
 
@@ -57,45 +70,60 @@ terraform fmt -recursive      # format
 
 ## State Management
 
-Remote state lives in S3 (`aci-capstone1-remote-state`, `us-east-1`) with native S3 locking (`use_lockfile = true`). Each env writes to its own state key:
+Remote state lives in S3 (`aci-capstone1-remote-state`, `us-east-1`) with native S3 locking (`use_lockfile = true`). State key:
 
 - `envs/dev/terraform.tfstate`
 
-Configured in each env's `backend.tf`. Do **not** commit local `.tfstate` files — `.gitignore` already excludes them. Note: `encrypt = true` is currently commented out in `dev/backend.tf`.
+Configured in `envs/dev/backend.tf`. Do **not** commit local `.tfstate` files — `.gitignore` already excludes them. Note: `encrypt = true` is currently commented out.
 
 ## Variables
 
-`terraform.tfvars` is **gitignored** because it contains environment-specific values. Variables flow through two layers (module → env wrapper). To add a new variable:
+`terraform.tfvars` is **gitignored** because it contains environment-specific values. Variables flow in two layers (sub-module ⇄ env). To add a new input to an existing sub-module:
 
-1. Declare it in `modules/variables.tf` with `type` + validation
-2. Add a pass-through declaration in `envs/dev/variables.tf`
-3. Set the value in `envs/dev/terraform.tfvars`
-4. Forward it in `envs/dev/main.tf` inside the `module "document_backend"` block
-5. Expose any ARNs/IDs via `modules/outputs.tf` and `envs/dev/outputs.tf`
+1. Declare it in `infrastructure/modules/<sub>/variables.tf` with `type` + validation
+2. Use it in the sub-module's `.tf` resources
+3. Add a pass-through declaration in `envs/dev/variables.tf`
+4. Set the value in `envs/dev/terraform.tfvars`
+5. Forward it inside the `module "<sub>" { ... }` block in `envs/dev/main.tf`
 
-**Shortcut:** if a value is identical across envs, hardcode it in the module call or give it a `default` in `modules/variables.tf` and skip the env-level plumbing.
+**Shortcut:** if a value is identical across envs, hardcode it directly in the env's `module` call (skip steps 3–4) or give it a `default` in the sub-module's `variables.tf`.
+
+To add a brand-new sub-module: create `infrastructure/modules/<name>/{main.tf,variables.tf,outputs.tf,README.md}`, then add `module "<name>" { source = "../../modules/<name>" ... }` to `envs/dev/main.tf`.
+
+## Cross-module values
+
+Sub-modules are isolated scopes — `modules/lambda/` cannot directly reference `module.document_s3_bucket` from `modules/s3/`. Shared values must flow through the env:
+
+```
+modules/s3/outputs.tf       → exposes bucket ARN as `document_bucket_arn`
+envs/dev/main.tf            → reads it, passes into the lambda module call
+modules/lambda/variables.tf → receives it as var.document_s3_bucket_arn
+modules/lambda/*.tf         → uses var.document_s3_bucket_arn
+```
+
+This is exactly how the Lambda IAM policy gets the bucket ARN today (see `envs/dev/main.tf` → `module "document_lambda"`).
 
 ## Default Tags
 
-Every resource inherits the following tags via the provider's `default_tags` block:
+Every resource inherits these tags via the provider's `default_tags` block:
 
-| Tag | Value |
-|---|---|
-| `Project` | `var.project_name` |
-| `Environment` | `var.project_environment` |
-| `Owner` | `var.project_owner` |
-| `ManagedBy` | `Terraform` |
+| Tag          | Value                       |
+|--------------|-----------------------------|
+| `Project`    | `var.project_name`          |
+| `Environment`| `var.project_environment`   |
+| `Owner`      | `var.project_owner`         |
+| `ManagedBy`  | `Terraform`                 |
 
 ## Pinned Module Versions
 
-| Module | Version |
-|---|---|
-| `terraform-aws-modules/s3-bucket/aws` | `5.12.0` |
-| `terraform-aws-modules/dynamodb-table/aws` | `5.5.0` |
-| `terraform-aws-modules/sns/aws` | `7.1.0` |
-| `hashicorp/aws` provider | `~> 6.0` |
+| Module                                     | Version    |
+|--------------------------------------------|------------|
+| `terraform-aws-modules/s3-bucket/aws`      | `5.12.0`   |
+| `terraform-aws-modules/dynamodb-table/aws` | `5.5.0`    |
+| `terraform-aws-modules/sns/aws`            | `7.1.0`    |
+| `hashicorp/aws` provider                   | `~> 6.0`   |
 
 ## Notes
 
-- Toggling `customer_metadata_table_autoscaling_enabled` recreates the DynamoDB table — use `terraform state mv` to preserve data.
+- Toggling `customer_metadata_table_autoscaling_enabled` recreates the DynamoDB table — use `terraform state mv` to preserve data (see `modules/dynamodb/README.md`).
 - The SNS email subscription requires manual confirmation from the inbox before notifications will deliver.
