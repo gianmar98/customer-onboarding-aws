@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 output "document_bucket_name" {
   description = "Name of the document S3 bucket"
   value       = module.document_s3_bucket.document_bucket_name

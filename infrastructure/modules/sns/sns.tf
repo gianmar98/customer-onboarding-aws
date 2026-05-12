@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 module "app_notification_sns" {
   source  = "terraform-aws-modules/sns/aws"
   version = "7.1.0"

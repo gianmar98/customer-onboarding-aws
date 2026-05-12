@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 terraform {
   backend "s3" {
     bucket       = "aci-capstone1-remote-state"

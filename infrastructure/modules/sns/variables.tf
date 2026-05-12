@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 # SNS --------------------------------------------------------------------------------
 variable "app_notification_sns_name" {
   description = "Name of the application notifications SNS topic"

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 
 # SNS --------------------------------------------------------------------------------
 output "sns_topic_arn" {

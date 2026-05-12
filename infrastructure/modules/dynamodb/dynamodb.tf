@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 module "customer_metadata_table" {
   source  = "terraform-aws-modules/dynamodb-table/aws"
   version = "5.5.0"

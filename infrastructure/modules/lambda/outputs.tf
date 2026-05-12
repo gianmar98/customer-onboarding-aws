@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 # Lambda IAM -------------------------------------------------------------------------
 output "document_lambda_role_arn" {
   description = "ARN of the Lambda execution role"

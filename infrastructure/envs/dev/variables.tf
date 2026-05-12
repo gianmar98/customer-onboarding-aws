@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 # Project-wide ----------------------------------------------------------------------
 variable "project_region" {
   description = "AWS region the project deploys to"

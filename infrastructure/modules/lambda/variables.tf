@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 # Lambda IAM -------------------------------------------------------------------------
 variable "document_lambda_role_name" {
   description = "Name of the Lambda execution role"

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, with the role attached
   name = var.document_lambda_role_name
 

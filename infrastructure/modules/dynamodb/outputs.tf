@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Giancarlo Martinez
+# SPDX-License-Identifier: MIT
+
 # DynamoDB ---------------------------------------------------------------------------
 output "customer_metadata_table_name" {
   description = "Name of the CustomerMetadata DynamoDB table"
