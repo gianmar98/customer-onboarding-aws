@@ -2,6 +2,9 @@
 
 AWS infrastructure for a serverless document-handling backend, provisioned entirely with Terraform.
 
+<img width="319" height="284" alt="image" src="https://github.com/user-attachments/assets/5def360d-68c5-423a-8ae0-12b769303b19" />
+
+
 ## Stack
 
 - **S3** — document storage bucket (TLS-only, public access blocked, AES256 SSE)
