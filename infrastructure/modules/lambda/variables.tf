@@ -12,6 +12,28 @@ variable "document_lambda_policy_name" {
   type        = string
 }
 
+
+variable "lambda_function_name" {
+  description = "This is the name of the Lambda that will interact"
+  type = string
+}
+
+variable "current_region" {
+  description = "Current project region of deployment"
+  type = string
+}
+
+variable "current_account_id" {
+  description = "Current account ID"
+  type = string
+}
+
+variable "lambda_cloudwatch_logs_policy_name" {
+  description = "Name of the CloudWatch Logs Policy"
+  type = string
+}
+#--------------------------
+
 variable "document_s3_bucket_arn" {
   description = "ARN of the document S3 bucket Lambda needs to access to"
   type = string

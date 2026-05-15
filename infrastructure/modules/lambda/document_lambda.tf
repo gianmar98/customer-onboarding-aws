@@ -19,6 +19,7 @@ resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, 
   })
 }
 
+#INLINE POLICY
 resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is allowed to do
   role = aws_iam_role.document_lambda_role.id
   name = var.document_lambda_policy_name
@@ -54,16 +55,38 @@ resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is
         ],
         Resource = var.sns_topic_arn
       },
-      { # Adding CloudWatch Logs to be able to debug Lambda function
-        Sid    = "CloudWatchLogs"
+    ]
+  })
+}
+
+#MANAGED POLICY
+resource "aws_iam_policy" "lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
+  name = var.lambda_cloudwatch_logs_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # Create Log Group
+        Sid    = "CloudWatchLogGroupCreation"
         Effect = "Allow"
         Action = [
           "logs:CreateLogGroup",
+        ]
+        Resource = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
+      },
+      { # Resource is scoped to this Lambda's own log group
+        Sid    = "CloudWatchLogsStreamAndPut"
+        Effect = "Allow"
+        Action = [
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:*:*:*"
+        Resource = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:/aws/lambda/${var.lambda_function_name}:*"
       }
     ]
   })
+}
+resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_lambdaRole" {
+  policy_arn = aws_iam_policy.lambda_cloudwatch_logs_policy.arn
+  role       = aws_iam_role.document_lambda_role.name
 }

@@ -40,6 +40,16 @@ variable "document_lambda_policy_name" {
   type        = string
 }
 
+variable "lambda_function_name" {
+  description = "This is the name of the Lambda that will interact"
+  type        = string
+}
+
+variable "lambda_cloudwatch_logs_policy_name" {
+  description = "Name of the CloudWatch Logs Policy"
+  type        = string
+}
+
 # DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
   description = "Name of the customer metadata DynamoDB table"

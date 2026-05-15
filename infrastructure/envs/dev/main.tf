@@ -11,6 +11,9 @@ terraform {
   }
 }
 
+data "aws_caller_identity" "currentUser" {}
+data "aws_region" "currentUser" {}
+
 provider "aws" {
   region = var.project_region
   default_tags {
@@ -49,10 +52,15 @@ module "app_notification_sns" {
 }
 
 module "document_lambda" {
-  source                      = "../../modules/lambda"
-  document_lambda_policy_name = var.document_lambda_policy_name
-  document_lambda_role_name   = var.document_lambda_role_name
-  document_s3_bucket_arn      = module.document_s3_bucket.document_bucket_arn
-  dynamodb_metadata_table_arn = module.customer_metadata_dynamo_db_table.customer_metadata_table_arn
-  sns_topic_arn = module.app_notification_sns.sns_topic_arn
+  # Module Variable = What is being passed to module var
+  source                             = "../../modules/lambda"
+  document_lambda_policy_name        = var.document_lambda_policy_name
+  document_lambda_role_name          = var.document_lambda_role_name
+  document_s3_bucket_arn             = module.document_s3_bucket.document_bucket_arn
+  dynamodb_metadata_table_arn        = module.customer_metadata_dynamo_db_table.customer_metadata_table_arn
+  sns_topic_arn                      = module.app_notification_sns.sns_topic_arn
+  lambda_function_name               = var.lambda_function_name
+  current_region                     = data.aws_region.currentUser.region
+  current_account_id                 = data.aws_caller_identity.currentUser.account_id
+  lambda_cloudwatch_logs_policy_name = var.lambda_cloudwatch_logs_policy_name
 }
