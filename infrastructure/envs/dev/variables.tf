@@ -40,14 +40,19 @@ variable "document_lambda_policy_name" {
   type        = string
 }
 
-variable "lambda_function_name" {
-  description = "This is the name of the Lambda that will interact"
-  type        = string
-}
-
 variable "lambda_cloudwatch_logs_policy_name" {
   description = "Name of the CloudWatch Logs Policy"
   type        = string
+}
+
+variable "document_lambda_function_name" {
+  description = "Name of the document Lambda function"
+  type        = string
+}
+
+variable "document_lambda_function_timeout" {
+  description = "The max mount of time function should run for"
+  type        = number
 }
 
 # DynamoDB ---------------------------------------------------------------------------

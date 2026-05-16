@@ -81,7 +81,7 @@ resource "aws_iam_policy" "lambda_cloudwatch_logs_policy" { # what the identity 
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:/aws/lambda/${var.lambda_function_name}:*"
+        Resource = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:/aws/lambda/${var.document_lambda_function_name}:*"
       }
     ]
   })
@@ -89,4 +89,10 @@ resource "aws_iam_policy" "lambda_cloudwatch_logs_policy" { # what the identity 
 resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_lambdaRole" {
   policy_arn = aws_iam_policy.lambda_cloudwatch_logs_policy.arn
   role       = aws_iam_role.document_lambda_role.name
+}
+
+#So I do NOT pay for retention of data older than 14 days
+resource "aws_cloudwatch_log_group" "document_lambda_logs" {
+  name              = "/aws/lambda/${var.document_lambda_function_name}"
+  retention_in_days = 14
 }
