@@ -6,7 +6,7 @@ AWS infrastructure for a serverless document-handling backend, provisioned entir
 
 - **S3** — document storage bucket (TLS-only, public access blocked, AES256 SSE)
 - **DynamoDB** — `CustomerMetadataTable` (provisioned capacity with optional autoscaling, partition key `APP_UUID`)
-- **Lambda IAM** — execution role + inline policy for S3 R/W/Delete and CloudWatch Logs (Lambda function itself not yet provisioned)
+- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus a separate **customer-managed** policy for least-privilege CloudWatch Logs access. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/DocumentLambdaFunction`, 14-day retention) wired via `logging_config`.
 - **SNS** — `ApplicationNotifications` topic with email subscription, KMS-encrypted
 
 All resources deploy to `us-east-1`.
@@ -33,8 +33,11 @@ All resources deploy to `us-east-1`.
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
-│   │   ├── lambda/            # Lambda IAM role + inline policy
-│   │   │   ├── document_lambda.tf
+│   │   ├── lambda/            # IAM (role + inline + managed), Lambda function, log group, S3 trigger
+│   │   │   ├── lambda_policies.tf          # role, inline policy, managed CW policy + attachment, log group
+│   │   │   ├── document_lambda_function.tf # function, archive_file, S3 notification, invoke permission
+│   │   │   ├── src/                        # Python handler source (s3_upload.py)
+│   │   │   ├── build/                      # archive_file zip output (gitignored)
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
@@ -101,7 +104,7 @@ modules/lambda/variables.tf → receives it as var.document_s3_bucket_arn
 modules/lambda/*.tf         → uses var.document_s3_bucket_arn
 ```
 
-This is exactly how the Lambda IAM policy gets the bucket ARN today (see `envs/dev/main.tf` → `module "document_lambda"`).
+This is how the Lambda IAM policy gets the bucket ARN today, and the same pattern flows `document_bucket_name` from `modules/s3/outputs.tf` into the lambda module for the `aws_s3_bucket_notification`. The env's `main.tf` also declares `data "aws_caller_identity"` and `data "aws_region"` and passes `current_account_id` / `current_region` into the lambda module so its CloudWatch IAM policy can build region/account-scoped ARNs without hardcoding.
 
 ## Default Tags
 
