@@ -1,6 +1,12 @@
 # Copyright (c) 2026 Giancarlo Martinez
 # SPDX-License-Identifier: MIT
 
+locals {
+  log_group_name        = "/aws/lambda/${var.document_lambda_function_name}"
+  logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
+  log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.log_group_name}:*"
+}
+
 resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, with the role attached
   name = var.document_lambda_role_name
 
@@ -72,7 +78,7 @@ resource "aws_iam_policy" "lambda_cloudwatch_logs_policy" { # what the identity 
         Action = [
           "logs:CreateLogGroup",
         ]
-        Resource = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
+        Resource = local.logs_group_create_arn
       },
       { # Resource is scoped to this Lambda's own log group
         Sid    = "CloudWatchLogsStreamAndPut"
@@ -81,7 +87,7 @@ resource "aws_iam_policy" "lambda_cloudwatch_logs_policy" { # what the identity 
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:/aws/lambda/${var.document_lambda_function_name}:*"
+        Resource = local.log_stream_arn_prefix
       }
     ]
   })
@@ -93,6 +99,6 @@ resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_lambdaRole
 
 #So I do NOT pay for retention of data older than 14 days
 resource "aws_cloudwatch_log_group" "document_lambda_logs" {
-  name              = "/aws/lambda/${var.document_lambda_function_name}"
+  name              = local.log_group_name
   retention_in_days = 14
 }

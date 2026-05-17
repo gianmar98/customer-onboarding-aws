@@ -13,7 +13,7 @@ resource "aws_lambda_function" "document_lambda_function" {
   role          = aws_iam_role.document_lambda_role.arn
   handler       = "s3_upload.lambda_handler"
 
-  #"Here's the hash of the code I'm about to ship. If this value differs from the one I told you last time, treat the function as changed and redeploy it."
+  #Hash being shipped. If this value differs from the original one, treat the function as changed and redeploy it.
   source_code_hash = data.archive_file.document_lambda_function_archive_file.output_base64sha256
 
   runtime = "python3.13"
