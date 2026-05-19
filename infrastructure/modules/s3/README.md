@@ -7,7 +7,9 @@ Provisions the document storage S3 bucket plus a TLS-only bucket policy.
 - `module.document_s3_bucket` — `terraform-aws-modules/s3-bucket/aws` v5.12.0
   - AES256 server-side encryption (default)
   - Public access blocked (the upstream module's default)
+  - `force_destroy = true` — `terraform destroy` will empty the bucket before deleting it, so it won't fail with `BucketNotEmpty`
 - `aws_s3_bucket_policy.document_bucket_tls_only` — denies any non-HTTPS request (`aws:SecureTransport = false`)
+- `aws_s3_object.zipped_prefix` — empty `zipped/` placeholder object so the prefix exists in the console before the first upload, and so the Lambda module's S3 notification has something to match against from day one
 
 ## Inputs
 

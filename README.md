@@ -4,9 +4,11 @@ AWS infrastructure for a serverless document-handling backend, provisioned entir
 
 ## Stack
 
-- **S3** — document storage bucket (TLS-only, public access blocked, AES256 SSE)
+All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-prod`) at the env layer — see **Env-suffix naming** below.
+
+- **S3** — document storage bucket (TLS-only, public access blocked, AES256 SSE, `force_destroy = true`). Also creates an empty `zipped/` placeholder object so the Lambda's trigger prefix exists before the first upload.
 - **DynamoDB** — `CustomerMetadataTable` (provisioned capacity with optional autoscaling, partition key `APP_UUID`)
-- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation, the handler downloads the zip to `/tmp/`, extracts it into `/tmp/unzipped/`, re-uploads each extracted file to the same bucket under the `unzipped/` prefix, and logs the derived `app_uuid`, `selfie_key`, `license_key`, and `details_file` paths to CloudWatch. Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus a separate **customer-managed** policy for least-privilege CloudWatch Logs access. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/DocumentLambdaFunction`, 14-day retention) wired via `logging_config`.
+- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation, the handler downloads the zip to `/tmp/`, extracts it into `/tmp/unzipped/`, re-uploads each extracted file to the same bucket under the `unzipped/` prefix, and logs the derived `app_uuid`, `selfie_key`, `license_key`, and `details_file` paths to CloudWatch. Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus a separate **customer-managed** policy for least-privilege CloudWatch Logs access. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config` — the log group name picks up the env suffix from the function name.
 - **SNS** — `ApplicationNotifications` topic with email subscription, KMS-encrypted
 
 All resources deploy to `us-east-1`.
@@ -56,7 +58,26 @@ All resources deploy to `us-east-1`.
 └── frontend/                # (placeholder — not yet implemented)
 ```
 
-The structure is **per-resource sub-modules composed by the env**. Only `dev` exists today; a `prod` env can be added later by copying `dev/`, swapping the backend `key`, and supplying its own `terraform.tfvars`.
+The structure is **per-resource sub-modules composed by the env**. Only `dev` exists today; a `prod` env can be added later by copying `dev/`, swapping the backend `key`, and setting `project_environment = "prod"` in the new `terraform.tfvars` — the base names stay identical and the env-suffix pattern (see below) makes every resource land as `*-prod` automatically.
+
+## Env-suffix naming
+
+Every resource name passed into a module is stamped with `-${var.project_environment}` from a `locals` block in the env's `main.tf`:
+
+```hcl
+locals {
+  env_suffix = "-${var.project_environment}"
+}
+
+module "document_lambda" {
+  document_lambda_function_name = "${var.document_lambda_function_name}${local.env_suffix}"
+  # ...same pattern for every *_name input
+}
+```
+
+This keeps dev and prod able to coexist in the same AWS account without colliding on globally-unique names (S3 buckets, IAM roles, IAM managed policies, Lambda functions, DynamoDB tables, SNS topics). `terraform.tfvars` holds **base** names; the env appends the suffix. Modules don't know about envs and don't take a `project_env` input — they receive a fully-formed name string.
+
+IAM `Sid` values inside policy documents are kept as static literals (`AllowLambdaAssumeRole`, `S3AccessPolicy`, etc.) — AWS requires Sids to be alphanumeric, so they can't carry the `-dev` hyphen. Sids are document-local, so reusing the same label across envs is harmless.
 
 ## Common Commands
 
