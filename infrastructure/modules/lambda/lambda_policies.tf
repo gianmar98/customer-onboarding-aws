@@ -16,7 +16,7 @@ resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, 
       {
         Action = "sts:AssumeRole"
         Effect = "Allow"
-        Sid    = var.document_lambda_role_name
+        Sid    = "AllowLambdaAssumeRole"
         Principal = { #Trusted entity type (Lambda)
           Service = "lambda.amazonaws.com"
         }

@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 module "document_s3_bucket" {
-  source  = "terraform-aws-modules/s3-bucket/aws"
-  version = "5.12.0"
-  bucket  = var.document_s3_bucket_name
+  source        = "terraform-aws-modules/s3-bucket/aws"
+  version       = "5.12.0"
+  bucket        = var.document_s3_bucket_name
   force_destroy = true
 
   server_side_encryption_configuration = {
