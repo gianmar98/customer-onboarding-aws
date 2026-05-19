@@ -1,3 +1,8 @@
+# Portions of this code are adapted from AWS Training and Certification:
+# "Capstone Project: Building a Customer Onboarding App - Lab 03".
+# Original lab code (c) Amazon Web Services, Inc. Adapted by Giancarlo Martinez
+# for ACI Capstone 1.
+
 import json
 import os
 import zipfile
