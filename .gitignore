@@ -49,5 +49,4 @@ infrastructure/modules/lambda/build/
 #Test Zip for Lambda function
 TestZipUpload/*
 8d247914.zip
-#cd /Users/giancarlomartinez/PycharmProjects/ACICapstone1 && aws s3 cp 8d247914.zip s3://documentbucket-aci1/zipped/
-# aws s3 rm s3://documentbucket-aci1/zipped/8d247914.zip
+#cd /Users/giancarlomartinez/PycharmProjects/ACICapstone1 && aws s3 cp 8d247914.zip s3://documentbucket-aci1-dev/zipped/

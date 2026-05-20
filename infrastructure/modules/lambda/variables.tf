@@ -56,3 +56,8 @@ variable "sns_topic_arn" {
   description = "ARN of the SNS topic that Lambda needs to access"
   type        = string
 }
+
+variable "dynamodb_document_table_name" {
+  description = "This is the name that will be referenced from lambda ENV variable form DynamoDB table"
+  type        = string
+}

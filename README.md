@@ -8,7 +8,7 @@ All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-pr
 
 - **S3** — document storage bucket (TLS-only, public access blocked, AES256 SSE, `force_destroy = true`). Also creates an empty `zipped/` placeholder object so the Lambda's trigger prefix exists before the first upload.
 - **DynamoDB** — `CustomerMetadataTable` (provisioned capacity with optional autoscaling, partition key `APP_UUID`)
-- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation, the handler downloads the zip to `/tmp/`, extracts it into `/tmp/unzipped/`, re-uploads each extracted file to the same bucket under the `unzipped/` prefix, and logs the derived `app_uuid`, `selfie_key`, `license_key`, and `details_file` paths to CloudWatch. Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus a separate **customer-managed** policy for least-privilege CloudWatch Logs access. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config` — the log group name picks up the env suffix from the function name.
+- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation, the handler downloads the zip to `/tmp/`, extracts it into `/tmp/unzipped/`, re-uploads each extracted file to the same bucket under the `unzipped/` prefix, derives `app_uuid` from the zip filename, and reads the single-row `<app_uuid>_details.csv` via `csv.DictReader` + `next()` — writing the parsed row plus `APP_UUID` as the partition key into the DynamoDB table via `put_item`. Logs `selfie_key`, `license_key`, and `details_file` paths to CloudWatch along the way. The DynamoDB table name is passed to the function as the `TABLE` environment variable. Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus a separate **customer-managed** policy for least-privilege CloudWatch Logs access. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config` — the log group name picks up the env suffix from the function name.
 - **SNS** — `ApplicationNotifications` topic with email subscription, KMS-encrypted
 
 All resources deploy to `us-east-1`.
@@ -77,7 +77,7 @@ module "document_lambda" {
 
 This keeps dev and prod able to coexist in the same AWS account without colliding on globally-unique names (S3 buckets, IAM roles, IAM managed policies, Lambda functions, DynamoDB tables, SNS topics). `terraform.tfvars` holds **base** names; the env appends the suffix. Modules don't know about envs and don't take a `project_env` input — they receive a fully-formed name string.
 
-IAM `Sid` values inside policy documents are kept as static literals (`AllowLambdaAssumeRole`, `S3AccessPolicy`, etc.) — AWS requires Sids to be alphanumeric, so they can't carry the `-dev` hyphen. Sids are document-local, so reusing the same label across envs is harmless.
+IAM `Sid` values inside policy documents are kept as static literals (`DocumentLambdaRole`, `S3AccessPolicy`, etc.) — AWS requires Sids to be alphanumeric, so they can't carry the `-dev` hyphen. Sids are document-local, so reusing the same label across envs is harmless.
 
 ## Common Commands
 
@@ -125,7 +125,7 @@ modules/lambda/variables.tf → receives it as var.document_s3_bucket_arn
 modules/lambda/*.tf         → uses var.document_s3_bucket_arn
 ```
 
-This is how the Lambda IAM policy gets the bucket ARN today, and the same pattern flows `document_bucket_name` from `modules/s3/outputs.tf` into the lambda module for the `aws_s3_bucket_notification`. The env's `main.tf` also declares `data "aws_caller_identity"` and `data "aws_region"` and passes `current_account_id` / `current_region` into the lambda module so its CloudWatch IAM policy can build region/account-scoped ARNs without hardcoding.
+This is how the Lambda IAM policy gets the bucket ARN today, and the same pattern flows `document_bucket_name` from `modules/s3/outputs.tf` into the lambda module for the `aws_s3_bucket_notification`. The DynamoDB table **name** flows the same way — `module.customer_metadata_dynamo_db_table.customer_metadata_table_name` is passed into the lambda module as `dynamodb_document_table_name` and surfaced to the handler at runtime as the `TABLE` environment variable. The env's `main.tf` also declares `data "aws_caller_identity"` and `data "aws_region"` and passes `current_account_id` / `current_region` into the lambda module so its CloudWatch IAM policy can build region/account-scoped ARNs without hardcoding.
 
 ## Default Tags
 

@@ -24,6 +24,12 @@ resource "aws_lambda_function" "document_lambda_function" {
     log_group  = aws_cloudwatch_log_group.document_lambda_logs.name
     log_format = "Text"
   }
+
+  environment {
+    variables = {
+      TABLE = var.dynamodb_document_table_name
+    }
+  }
 }
 
 

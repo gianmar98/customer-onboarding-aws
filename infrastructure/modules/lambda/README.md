@@ -8,11 +8,11 @@ Provisions the document-handling Lambda function, its execution role + policies,
 
 - `lambda_policies.tf` — IAM role, inline policy (S3/DynamoDB/SNS), customer-managed CloudWatch Logs policy + attachment, and the log group.
 - `document_lambda_function.tf` — `archive_file` packaging, the Lambda function itself, the S3 bucket notification, and the `lambda:InvokeFunction` permission for S3.
-- `src/s3_upload.py` — Python 3.13 handler. Downloads the triggering zip to `/tmp/`, extracts it into `/tmp/unzipped/`, re-uploads each extracted file to the same bucket under the `unzipped/` prefix, then derives `app_uuid` from the zip filename and logs `selfie_key` / `license_key` / `details_file` paths to CloudWatch.
+- `src/s3_upload.py` — Python 3.13 handler. Downloads the triggering zip to `/tmp/`, extracts it into `/tmp/unzipped/`, re-uploads each extracted file to the same bucket under the `unzipped/` prefix, derives `app_uuid` from the zip filename, then calls `parse_csv_ddb(app_uuid, details_file)` which reads the single-row `<app_uuid>_details.csv` via `csv.DictReader` + `next()` and writes the parsed row plus `APP_UUID` (as partition key) into the DynamoDB table via `put_item`. Reads the target DynamoDB table name from the `TABLE` environment variable at module load.
 
 ## Resources
 
-- `aws_iam_role.document_lambda_role` — assume-role trust for `lambda.amazonaws.com`. The trust-policy `Sid` is the literal `"AllowLambdaAssumeRole"` (IAM Sids must be alphanumeric, so it can't be derived from the env-suffixed role name).
+- `aws_iam_role.document_lambda_role` — assume-role trust for `lambda.amazonaws.com`. The trust-policy `Sid` is the literal `"DocumentLambdaRole"` (IAM Sids must be alphanumeric, so it can't be derived from the env-suffixed role name).
 - `aws_iam_role_policy.document_lambda_policy` — **inline** policy granting:
   - `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` on `${document_s3_bucket_arn}/*`
   - `dynamodb:PutItem`, `dynamodb:UpdateItem` on `${dynamodb_metadata_table_arn}`
@@ -23,7 +23,7 @@ Provisions the document-handling Lambda function, its execution role + policies,
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_lambdaRole` — attaches the managed CW policy to the role.
 - `aws_cloudwatch_log_group.document_lambda_logs` — `/aws/lambda/<function_name>`, 14-day retention. The function name already carries the env suffix, so the log group does too.
 - `data.archive_file.document_lambda_function_archive_file` — zips `src/s3_upload.py` to `build/s3_upload.zip`.
-- `aws_lambda_function.document_lambda_function` — Python 3.13, handler `s3_upload.lambda_handler`, wired to the log group via `logging_config`, `source_code_hash` derived from the archive so any code change forces a redeploy.
+- `aws_lambda_function.document_lambda_function` — Python 3.13, handler `s3_upload.lambda_handler`, wired to the log group via `logging_config`, `source_code_hash` derived from the archive so any code change forces a redeploy. Exposes `TABLE = var.dynamodb_document_table_name` as a runtime environment variable so the handler can resolve the DynamoDB table at module load.
 - `aws_s3_bucket_notification.document_bucket_notification` — triggers the function on `s3:ObjectCreated:Put` under the `zipped/` prefix.
 - `aws_lambda_permission.allow_s3_invoke` — grants `s3.amazonaws.com` permission to invoke the function (`statement_id = "AllowS3Invoke"`).
 
@@ -41,6 +41,7 @@ Provisions the document-handling Lambda function, its execution role + policies,
 | `document_s3_bucket_arn` | `string` | Bucket ARN — used in the inline S3 policy and as `source_arn` on the invoke permission |
 | `document_s3_bucket_name` | `string` | Bucket name — used by the S3 notification resource |
 | `dynamodb_metadata_table_arn` | `string` | DynamoDB table ARN — scoped in the inline policy |
+| `dynamodb_document_table_name` | `string` | DynamoDB table **name** — passed to the Lambda as the `TABLE` environment variable so the handler can call `dynamodb.Table(os.environ['TABLE'])` |
 | `sns_topic_arn` | `string` | SNS topic ARN — scoped in the inline policy |
 
 ## Outputs
@@ -58,11 +59,12 @@ This module consumes values from all three sibling modules plus two env-level `d
 
 ```
 modules/s3/outputs.tf       → document_bucket_arn, document_bucket_name
-modules/dynamodb/outputs.tf → customer_metadata_table_arn
+modules/dynamodb/outputs.tf → customer_metadata_table_arn, customer_metadata_table_name
 modules/sns/outputs.tf      → sns_topic_arn
 envs/dev/main.tf            → data.aws_caller_identity, data.aws_region
                              → stamps env suffix via local.env_suffix
                              → passes everything into module "document_lambda"
+                             → wires customer_metadata_table_name → dynamodb_document_table_name
 modules/lambda/variables.tf → receives them as var.*
 ```
 
