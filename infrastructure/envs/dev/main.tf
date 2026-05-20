@@ -13,7 +13,7 @@ terraform {
 
 data "aws_caller_identity" "currentUser" {}
 data "aws_region" "currentUser" {}
-locals {
+locals{
   env_suffix = "-${var.project_environment}"
 }
 
