@@ -36,6 +36,12 @@ variable "document_lambda_function_timeout" {
   description = "The max mount of time function should run for"
   type        = number
 }
+
+variable "lambda_rekognition_face_comparison_policy_name" {
+  description = "This will be the name of the managed policy so lambda can compare faces"
+  type        = string
+}
+
 #--------------------------
 
 variable "document_s3_bucket_arn" {

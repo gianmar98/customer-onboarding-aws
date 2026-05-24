@@ -96,9 +96,31 @@ resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_lambdaRole
   policy_arn = aws_iam_policy.lambda_cloudwatch_logs_policy.arn
   role       = aws_iam_role.document_lambda_role.name
 }
-
 #So I do NOT pay for retention of data older than 14 days
 resource "aws_cloudwatch_log_group" "document_lambda_logs" {
   name              = local.log_group_name
   retention_in_days = 14
+}
+
+
+
+#MANAGED POLICY
+resource "aws_iam_policy" "rekognition_face_comparison_policy" {
+  name = var.lambda_rekognition_face_comparison_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "LambdaRekonitionFaceComparison",
+        Effect   = "Allow"
+        Action   = ["rekognition:CompareFaces"],
+        Resource = "*"
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_rekognition_policy_to_lambda" {
+  policy_arn = aws_iam_policy.rekognition_face_comparison_policy.arn
+  role       = aws_iam_role.document_lambda_role.name
 }

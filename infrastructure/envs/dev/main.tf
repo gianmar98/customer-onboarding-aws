@@ -6,7 +6,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 6.0"
+      version = "~> 6.4"
     }
   }
 }
@@ -56,17 +56,18 @@ module "app_notification_sns" {
 
 module "document_lambda" {
   # Module Variable = What is being passed to module var
-  source                             = "../../modules/lambda"
-  document_lambda_policy_name        = "${var.document_lambda_policy_name}${local.env_suffix}"
-  document_lambda_role_name          = "${var.document_lambda_role_name}${local.env_suffix}"
-  document_s3_bucket_arn             = module.document_s3_bucket.document_bucket_arn
-  document_s3_bucket_name            = module.document_s3_bucket.document_bucket_name
-  dynamodb_document_table_name       = module.customer_metadata_dynamo_db_table.customer_metadata_table_name
-  dynamodb_metadata_table_arn        = module.customer_metadata_dynamo_db_table.customer_metadata_table_arn
-  sns_topic_arn                      = module.app_notification_sns.sns_topic_arn
-  current_region                     = data.aws_region.currentUser.region
-  current_account_id                 = data.aws_caller_identity.currentUser.account_id
-  lambda_cloudwatch_logs_policy_name = "${var.lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
-  document_lambda_function_name      = "${var.document_lambda_function_name}${local.env_suffix}"
-  document_lambda_function_timeout   = var.document_lambda_function_timeout
+  source                                         = "../../modules/lambda"
+  document_lambda_policy_name                    = "${var.document_lambda_policy_name}${local.env_suffix}"
+  document_lambda_role_name                      = "${var.document_lambda_role_name}${local.env_suffix}"
+  document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn
+  document_s3_bucket_name                        = module.document_s3_bucket.document_bucket_name
+  dynamodb_document_table_name                   = module.customer_metadata_dynamo_db_table.customer_metadata_table_name
+  dynamodb_metadata_table_arn                    = module.customer_metadata_dynamo_db_table.customer_metadata_table_arn
+  sns_topic_arn                                  = module.app_notification_sns.sns_topic_arn
+  current_region                                 = data.aws_region.currentUser.region
+  current_account_id                             = data.aws_caller_identity.currentUser.account_id
+  lambda_cloudwatch_logs_policy_name             = "${var.lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
+  document_lambda_function_name                  = "${var.document_lambda_function_name}${local.env_suffix}"
+  document_lambda_function_timeout               = var.document_lambda_function_timeout
+  lambda_rekognition_face_comparison_policy_name = var.lambda_rekognition_face_comparison_policy_name
 }

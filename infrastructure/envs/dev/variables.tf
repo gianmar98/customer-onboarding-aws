@@ -55,6 +55,11 @@ variable "document_lambda_function_timeout" {
   type        = number
 }
 
+variable "lambda_rekognition_face_comparison_policy_name" {
+  description = "This will be the name of the managed policy so lambda can compare faces"
+  type        = string
+}
+
 # DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
   description = "Name of the customer metadata DynamoDB table"
