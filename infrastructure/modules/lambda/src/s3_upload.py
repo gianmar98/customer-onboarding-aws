@@ -5,6 +5,7 @@
 
 import json
 import os
+import csv
 import zipfile
 import boto3
 
@@ -40,6 +41,17 @@ def unzip_object(bucket, key):
 
     zipped_files = os.listdir(unzipped_dir)
     return zipped_files
+
+
+def parse_csv_ddb(app_uuid, details_file):
+    "Load CSV and save to dynamo"
+    with open(details_file, 'r', encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        details_dict = next(reader)
+
+    table.put_item(Item={**details_dict, "APP_UUID": app_uuid})
+
+    return details_dict
 
 
 def lambda_handler(event, context):
@@ -81,5 +93,8 @@ def lambda_handler(event, context):
     print(f"selfie_key = {selfie_key}")
     print(f"license_key = {license_key}")
     print(f"details_file = {details_file}")
+
+    # Save CSV to dynamo
+    details_dict = parse_csv_ddb(app_uuid, details_file)
 
 
