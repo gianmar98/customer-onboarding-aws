@@ -8,7 +8,7 @@ All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-pr
 
 - **S3** — document storage bucket (TLS-only, public access blocked, AES256 SSE, `force_destroy = true`). Also creates an empty `zipped/` placeholder object so the Lambda's trigger prefix exists before the first upload.
 - **DynamoDB** — `CustomerMetadataTable` (provisioned capacity with optional autoscaling, partition key `APP_UUID`)
-- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation, the handler downloads the zip to `/tmp/`, extracts it into `/tmp/unzipped/`, re-uploads each extracted file to the same bucket under the `unzipped/` prefix, derives `app_uuid` from the zip filename, and reads the single-row `<app_uuid>_details.csv` via `csv.DictReader` + `next()` — writing the parsed row plus `APP_UUID` as the partition key into the DynamoDB table via `put_item`. Logs `selfie_key`, `license_key`, and `details_file` paths to CloudWatch along the way. The DynamoDB table name is passed to the function as the `TABLE` environment variable. Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus a separate **customer-managed** policy for least-privilege CloudWatch Logs access. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config` — the log group name picks up the env suffix from the function name.
+- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation the handler: (1) downloads the zip, extracts into `/tmp/unzipped/`, re-uploads each file to the `unzipped/` prefix in S3; (2) parses `<app_uuid>_details.csv` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) calls Rekognition `compare_faces` passing selfie and license as S3 object references with `SimilarityThreshold=80`, sets `LICENSE_SELFIE_MATCH = True/False`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes to SNS if the match failed; (6) raises `ValueError` on mismatch so Lambda marks the invocation failed. The DynamoDB table name is passed as the `TABLE` env variable; the SNS topic ARN is passed as `TOPIC` (both wired via Terraform env variables). Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus two **customer-managed** policies: least-privilege CloudWatch Logs and `rekognition:CompareFaces`. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config`.
 - **SNS** — `ApplicationNotifications` topic with email subscription, KMS-encrypted
 
 All resources deploy to `us-east-1`.
@@ -125,7 +125,7 @@ modules/lambda/variables.tf → receives it as var.document_s3_bucket_arn
 modules/lambda/*.tf         → uses var.document_s3_bucket_arn
 ```
 
-This is how the Lambda IAM policy gets the bucket ARN today, and the same pattern flows `document_bucket_name` from `modules/s3/outputs.tf` into the lambda module for the `aws_s3_bucket_notification`. The DynamoDB table **name** flows the same way — `module.customer_metadata_dynamo_db_table.customer_metadata_table_name` is passed into the lambda module as `dynamodb_document_table_name` and surfaced to the handler at runtime as the `TABLE` environment variable. The env's `main.tf` also declares `data "aws_caller_identity"` and `data "aws_region"` and passes `current_account_id` / `current_region` into the lambda module so its CloudWatch IAM policy can build region/account-scoped ARNs without hardcoding.
+This is how the Lambda IAM policy gets the bucket ARN today, and the same pattern flows `document_bucket_name` from `modules/s3/outputs.tf` into the lambda module for the `aws_s3_bucket_notification`. The DynamoDB table **name** and **ARN** flow the same way — name becomes the `TABLE` runtime env variable; ARN scopes the inline IAM policy. The SNS topic **ARN** and **name** also flow from `modules/sns/outputs.tf` into the lambda module — ARN scopes the inline IAM policy and should be the `TOPIC` runtime env variable. The env's `main.tf` also declares `data "aws_caller_identity"` and `data "aws_region"` and passes `current_account_id` / `current_region` into the lambda module so its CloudWatch IAM policy can build region/account-scoped ARNs without hardcoding.
 
 ## Default Tags
 
@@ -145,7 +145,7 @@ Every resource inherits these tags via the provider's `default_tags` block:
 | `terraform-aws-modules/s3-bucket/aws`      | `5.12.0`   |
 | `terraform-aws-modules/dynamodb-table/aws` | `5.5.0`    |
 | `terraform-aws-modules/sns/aws`            | `7.1.0`    |
-| `hashicorp/aws` provider                   | `~> 6.0`   |
+| `hashicorp/aws` provider                   | `~> 6.4` (locked at 6.46.0) |
 
 ## Notes
 

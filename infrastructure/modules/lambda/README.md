@@ -8,7 +8,7 @@ Provisions the document-handling Lambda function, its execution role + policies,
 
 - `lambda_policies.tf` — IAM role, inline policy (S3/DynamoDB/SNS), customer-managed CloudWatch Logs policy + attachment, and the log group.
 - `document_lambda_function.tf` — `archive_file` packaging, the Lambda function itself, the S3 bucket notification, and the `lambda:InvokeFunction` permission for S3.
-- `src/s3_upload.py` — Python 3.13 handler. Downloads the triggering zip to `/tmp/`, extracts it into `/tmp/unzipped/`, re-uploads each extracted file to the same bucket under the `unzipped/` prefix, derives `app_uuid` from the zip filename, then calls `parse_csv_ddb(app_uuid, details_file)` which reads the single-row `<app_uuid>_details.csv` via `csv.DictReader` + `next()` and writes the parsed row plus `APP_UUID` (as partition key) into the DynamoDB table via `put_item`. Reads the target DynamoDB table name from the `TABLE` environment variable at module load.
+- `src/s3_upload.py` — Python 3.13 handler. Full invocation flow: (1) downloads and extracts the triggering zip into `/tmp/unzipped/`, re-uploads each file to `unzipped/` in S3; (2) `parse_csv_ddb` reads `<app_uuid>_details.csv` via `csv.DictReader` + `next()` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) `compare_faces` calls Rekognition `compare_faces` using S3 object references (not local bytes) with `SimilarityThreshold=80`, derives `LICENSE_SELFIE_MATCH = True/False` from `FaceMatches`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes a failure message to SNS if `LICENSE_SELFIE_MATCH` is `False`; (6) raises `ValueError` on mismatch so Lambda marks the invocation failed. Reads `TABLE` (DynamoDB table name) and `TOPIC` (SNS topic ARN) from environment variables at module load.
 
 ## Resources
 
@@ -23,7 +23,9 @@ Provisions the document-handling Lambda function, its execution role + policies,
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_lambdaRole` — attaches the managed CW policy to the role.
 - `aws_cloudwatch_log_group.document_lambda_logs` — `/aws/lambda/<function_name>`, 14-day retention. The function name already carries the env suffix, so the log group does too.
 - `data.archive_file.document_lambda_function_archive_file` — zips `src/s3_upload.py` to `build/s3_upload.zip`.
-- `aws_lambda_function.document_lambda_function` — Python 3.13, handler `s3_upload.lambda_handler`, wired to the log group via `logging_config`, `source_code_hash` derived from the archive so any code change forces a redeploy. Exposes `TABLE = var.dynamodb_document_table_name` as a runtime environment variable so the handler can resolve the DynamoDB table at module load.
+- `aws_lambda_function.document_lambda_function` — Python 3.13, handler `s3_upload.lambda_handler`, wired to the log group via `logging_config`, `source_code_hash` derived from the archive so any code change forces a redeploy. Exposes `TABLE = var.dynamodb_document_table_name` and `TOPIC = var.sns_topic_arn` as runtime environment variables.
+- `aws_iam_policy.rekognition_face_comparison_policy` — **customer-managed** policy granting `rekognition:CompareFaces` on `*`. Name is **not** env-suffixed (passed directly as `var.lambda_rekognition_face_comparison_policy_name`).
+- `aws_iam_role_policy_attachment.attach_rekognition_policy_to_lambda` — attaches the Rekognition policy to the role.
 - `aws_s3_bucket_notification.document_bucket_notification` — triggers the function on `s3:ObjectCreated:Put` under the `zipped/` prefix.
 - `aws_lambda_permission.allow_s3_invoke` — grants `s3.amazonaws.com` permission to invoke the function (`statement_id = "AllowS3Invoke"`).
 
@@ -42,7 +44,9 @@ Provisions the document-handling Lambda function, its execution role + policies,
 | `document_s3_bucket_name` | `string` | Bucket name — used by the S3 notification resource |
 | `dynamodb_metadata_table_arn` | `string` | DynamoDB table ARN — scoped in the inline policy |
 | `dynamodb_document_table_name` | `string` | DynamoDB table **name** — passed to the Lambda as the `TABLE` environment variable so the handler can call `dynamodb.Table(os.environ['TABLE'])` |
-| `sns_topic_arn` | `string` | SNS topic ARN — scoped in the inline policy |
+| `sns_topic_arn` | `string` | SNS topic ARN — scoped in the inline policy and used as the `TOPIC` env variable |
+| `sns_topic_name` | `string` | SNS topic name — passed in but unused at runtime |
+| `lambda_rekognition_face_comparison_policy_name` | `string` | Name of the Rekognition managed policy — **not** env-suffixed by the caller |
 
 ## Outputs
 
@@ -60,11 +64,12 @@ This module consumes values from all three sibling modules plus two env-level `d
 ```
 modules/s3/outputs.tf       → document_bucket_arn, document_bucket_name
 modules/dynamodb/outputs.tf → customer_metadata_table_arn, customer_metadata_table_name
-modules/sns/outputs.tf      → sns_topic_arn
+modules/sns/outputs.tf      → sns_topic_arn, sns_topic_name
 envs/dev/main.tf            → data.aws_caller_identity, data.aws_region
                              → stamps env suffix via local.env_suffix
                              → passes everything into module "document_lambda"
                              → wires customer_metadata_table_name → dynamodb_document_table_name
+                             → wires sns_topic_arn → TOPIC env variable (see known issue)
 modules/lambda/variables.tf → receives them as var.*
 ```
 
