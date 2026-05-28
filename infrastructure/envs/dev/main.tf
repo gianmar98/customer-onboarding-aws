@@ -64,6 +64,7 @@ module "document_lambda" {
   dynamodb_document_table_name                   = module.customer_metadata_dynamo_db_table.customer_metadata_table_name
   dynamodb_metadata_table_arn                    = module.customer_metadata_dynamo_db_table.customer_metadata_table_arn
   sns_topic_arn                                  = module.app_notification_sns.sns_topic_arn
+  sns_topic_name                                 = module.app_notification_sns.sns_topic_name
   current_region                                 = data.aws_region.currentUser.region
   current_account_id                             = data.aws_caller_identity.currentUser.account_id
   lambda_cloudwatch_logs_policy_name             = "${var.lambda_cloudwatch_logs_policy_name}${local.env_suffix}"

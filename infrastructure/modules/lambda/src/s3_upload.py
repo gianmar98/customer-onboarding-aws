@@ -13,9 +13,17 @@ unzipped_dir = "/tmp/unzipped/"
 unzipped_s3_prefix = "unzipped/"
 
 s3 = boto3.client('s3')
+
+#DynamoDB
 dynamodb = boto3.resource('dynamodb')
-# add ENV variable TABLE
-table = dynamodb.Table(os.environ['TABLE'])
+table = dynamodb.Table(os.environ['TABLE'])# add ENV variable TABLE
+
+#Rekognition
+rekognition = boto3.client('rekognition')
+
+#SNS
+sns = boto3.client('sns')
+env_topic = os.environ['TOPIC']# add ENV variable TABLE
 
 
 def unzip_object(bucket, key):
@@ -52,6 +60,48 @@ def parse_csv_ddb(app_uuid, details_file):
     table.put_item(Item={**details_dict, "APP_UUID": app_uuid})
 
     return details_dict
+
+def compare_faces(app_uuid, bucket, license_key, selfie_key):
+    "calls rekognition to compare license and selfie"
+    print("Starting face comparison")
+    compare_response = rekognition.compare_faces(
+        SourceImage={'S3Object': {
+            'Bucket': bucket,
+            'Name': license_key,
+        }},
+        TargetImage={'S3Object': {
+            'Bucket': bucket,
+            'Name': selfie_key,
+        }},
+        SimilarityThreshold=80
+    )
+
+    if len(compare_response['FaceMatches']) < 1:
+        photo_match_result = False
+    else:
+        photo_match_result = compare_response['FaceMatches'][0]['Similarity'] >= 80
+
+    # Update DDB with photo match value.
+    table.update_item(
+        Key={
+            'APP_UUID': app_uuid
+            },
+        UpdateExpression='SET LICENSE_SELFIE_MATCH = :p_match',
+        ExpressionAttributeValues={
+            ':p_match': photo_match_result
+            }
+        )
+
+    # Amazon SNS publish and Amazon S3 folder.
+    if not photo_match_result:
+        sns.publish(
+            TopicArn= env_topic,
+            Message= 'License photo validation FAILED',
+            Subject= 'License photo validation FAILED',
+            )
+
+    print("finished compare faces")
+    return photo_match_result
 
 
 def lambda_handler(event, context):
@@ -96,5 +146,10 @@ def lambda_handler(event, context):
 
     # Save CSV to dynamo
     details_dict = parse_csv_ddb(app_uuid, details_file)
+
+    # Submit license and selfie to rekognition to compare faces.
+    rekog_response = compare_faces(app_uuid, bucket, license_key, selfie_key)
+    if not rekog_response:
+        raise ValueError('Photo rekognition match FAILED. Program will stop')
 
 
