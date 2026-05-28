@@ -71,4 +71,5 @@ module "document_lambda" {
   document_lambda_function_name                  = "${var.document_lambda_function_name}${local.env_suffix}"
   document_lambda_function_timeout               = var.document_lambda_function_timeout
   lambda_rekognition_face_comparison_policy_name = var.lambda_rekognition_face_comparison_policy_name
+  lambda_textract_analyze_id_policy_name         = var.lambda_textract_analyze_id_policy_name
 }

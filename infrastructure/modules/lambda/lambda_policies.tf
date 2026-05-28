@@ -25,7 +25,7 @@ resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, 
   })
 }
 
-#INLINE POLICY
+#INLINE S3 & DYNAMODB POLICY
 resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is allowed to do
   role = aws_iam_role.document_lambda_role.id
   name = var.document_lambda_policy_name
@@ -65,7 +65,7 @@ resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is
   })
 }
 
-#MANAGED POLICY
+#MANAGED CLOUDWATCH POLICY
 resource "aws_iam_policy" "lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
   name = var.lambda_cloudwatch_logs_policy_name
 
@@ -104,7 +104,7 @@ resource "aws_cloudwatch_log_group" "document_lambda_logs" {
 
 
 
-#MANAGED POLICY
+#MANAGED REKOGNITION POLICY
 resource "aws_iam_policy" "rekognition_face_comparison_policy" {
   name = var.lambda_rekognition_face_comparison_policy_name
 
@@ -122,5 +122,26 @@ resource "aws_iam_policy" "rekognition_face_comparison_policy" {
 }
 resource "aws_iam_role_policy_attachment" "attach_rekognition_policy_to_lambda" {
   policy_arn = aws_iam_policy.rekognition_face_comparison_policy.arn
+  role       = aws_iam_role.document_lambda_role.name
+}
+
+# MANAGED TEXTRACT POLICY
+
+resource "aws_iam_policy" "textract_policy" {
+  name = var.lambda_textract_analyze_id_policy_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "TextractAnalyzeId"
+        Effect   = "Allow"
+        Action   = ["textract:AnalyzeID"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_textract_to_lambda" {
+  policy_arn = aws_iam_policy.textract_policy.arn
   role       = aws_iam_role.document_lambda_role.name
 }

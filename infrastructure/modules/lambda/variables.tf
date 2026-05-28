@@ -42,6 +42,11 @@ variable "lambda_rekognition_face_comparison_policy_name" {
   type        = string
 }
 
+variable "lambda_textract_analyze_id_policy_name" {
+  description = "This will be the name of the managed policy so Textract can analyze ID"
+  type        = string
+}
+
 #--------------------------
 
 variable "document_s3_bucket_arn" {
@@ -68,7 +73,7 @@ variable "sns_topic_arn" {
 }
 variable "sns_topic_name" {
   description = "Name of the SNS Topic that Lambda needs as ENV variable"
-  type = string
+  type        = string
 }
 
 
