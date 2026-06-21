@@ -29,7 +29,7 @@ variable "document_s3_bucket_name" {
 }
 
 
-# Lambda IAM -------------------------------------------------------------------------
+# Lambda -------------------------------------------------------------------------
 variable "document_lambda_role_name" {
   description = "Name of the Lambda execution role"
   type        = string
@@ -62,6 +62,21 @@ variable "lambda_rekognition_face_comparison_policy_name" {
 
 variable "lambda_textract_analyze_id_policy_name" {
   description = "This will be the name of the managed policy so Textract can analyze ID"
+  type        = string
+}
+
+variable "validate_lambda_function_name" {
+  description = "This is the name for my Lambda function to validate my documents"
+  type        = string
+}
+
+variable "validate_lambda_role_name" {
+  description = "This is the name of the Role of my validation lambda function"
+  type        = string
+}
+
+variable "validation_lambda_cloudwatch_logs_policy_name" {
+  description = "Name of the CloudWatch Logs Policy for my Validation Lambda"
   type        = string
 }
 

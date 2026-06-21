@@ -5,8 +5,13 @@ locals {
   log_group_name        = "/aws/lambda/${var.document_lambda_function_name}"
   logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
   log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.log_group_name}:*"
+
+  validation_log_group_name        = "/aws/lambda/${var.validate_lambda_function_name}"
+  validation_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
+  validation_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.validation_log_group_name}:*"
 }
 
+#DOCUMENT LAMBDA ROLE -------------------------------------------------------
 resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, with the role attached
   name = var.document_lambda_role_name
 
@@ -102,8 +107,6 @@ resource "aws_cloudwatch_log_group" "document_lambda_logs" {
   retention_in_days = 14
 }
 
-
-
 #MANAGED REKOGNITION POLICY
 resource "aws_iam_policy" "rekognition_face_comparison_policy" {
   name = var.lambda_rekognition_face_comparison_policy_name
@@ -126,7 +129,6 @@ resource "aws_iam_role_policy_attachment" "attach_rekognition_policy_to_lambda" 
 }
 
 # MANAGED TEXTRACT POLICY
-
 resource "aws_iam_policy" "textract_policy" {
   name = var.lambda_textract_analyze_id_policy_name
   policy = jsonencode({
@@ -145,3 +147,63 @@ resource "aws_iam_role_policy_attachment" "attach_textract_to_lambda" {
   policy_arn = aws_iam_policy.textract_policy.arn
   role       = aws_iam_role.document_lambda_role.name
 }
+#------------------------------------------------------------------------------
+
+
+#VALIDATION LAMBDA ROLE -------------------------------------------------------
+resource "aws_iam_role" "validation_lambda_role" { #the identity (Lambda) itself, with the role attached
+  name = var.validate_lambda_role_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = "ValidationLambdaRole"
+        Principal = { #Trusted entity type (Lambda)
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+# #MANAGED CLOUDWATCH POLICY
+resource "aws_iam_policy" "validation_lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
+  name = var.validation_lambda_cloudwatch_logs_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # Create Log Group
+        Sid    = "CloudWatchLogGroupCreation"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+        ]
+        Resource = local.validation_logs_group_create_arn
+      },
+      { # Resource is scoped to this Lambda's own log group
+        Sid    = "CloudWatchLogsStreamAndPut"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = local.validation_log_stream_arn_prefix
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_validationLambdaRole" {
+  policy_arn = aws_iam_policy.validation_lambda_cloudwatch_logs_policy.arn
+  role       = aws_iam_role.validation_lambda_role.name
+}
+resource "aws_cloudwatch_log_group" "validation_lambda_logs" {
+  name              = local.validation_log_group_name
+  retention_in_days = 14
+}
+
+#------------------------------------------------------------------------------
+
+
