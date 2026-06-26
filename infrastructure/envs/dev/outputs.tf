@@ -40,3 +40,8 @@ output "sns_topic_name" {
   description = "Name of the application notifications SNS topic"
   value       = module.app_notification_sns.sns_topic_name
 }
+
+output "license_validation_post_api_invoke_url" {
+  description = "Invoke URL for POST /license"
+  value       = module.api_gateway.license_validation_invoke_url
+}

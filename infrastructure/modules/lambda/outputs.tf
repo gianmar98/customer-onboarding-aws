@@ -21,3 +21,8 @@ output "document_lambda_function_name" {
   description = "This is the name of the document Lambda Function"
   value       = aws_lambda_function.document_lambda_function.function_name
 }
+
+output "validation_lambda_invoke_arn" {
+  description = "Invoke ARN of the validation Lambda function"
+  value       = aws_lambda_function.validation_lambda_function.invoke_arn
+}

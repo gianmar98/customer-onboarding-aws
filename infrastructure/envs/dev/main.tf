@@ -82,3 +82,12 @@ module "document_lambda" {
   sns_topic_arn                                  = module.app_notification_sns.sns_topic_arn
   sns_topic_name                                 = module.app_notification_sns.sns_topic_name
 }
+
+module "api_gateway" {
+  source               = "../../modules/apiGateway"
+  validate_api_gw_name = var.validate_api_gw_name
+
+  #External
+  validate_lambda_function_name = var.validate_lambda_function_name
+  validate_lambda_invoke_arn    = module.document_lambda.validation_lambda_invoke_arn
+}

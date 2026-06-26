@@ -142,3 +142,10 @@ variable "app_notification_email_endpoint" {
   description = "Email subscribed to the SNS topic"
   type        = string
 }
+
+# API GATEWAY ----
+variable "validate_api_gw_name" {
+  description = "This is the name of the API GW that will trigger the validation Lambda"
+  type        = string
+}
+
