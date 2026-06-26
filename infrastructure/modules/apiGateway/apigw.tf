@@ -3,7 +3,7 @@
 
 # curl -X POST -H 'Content-Type: application/json' -d '{"driver_license_id": "S123456579010", "validation_override": "False"}' $API_ENDPOINT_URL
 
-#aws logs tail /aws/lambda/ValidateLicenseLambdaFunction
+#aws logs tail /aws/lambda/ValidateLicenseLambdaFunctionU
 
 #The API itself
 resource "aws_apigatewayv2_api" "validate_license_api" {

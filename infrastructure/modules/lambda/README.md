@@ -73,6 +73,7 @@ Provisions the document-handling Lambda function, its execution role + policies,
 | `document_lambda_role_name` | Name of the Lambda execution role |
 | `document_lambda_function_arn` | ARN of the Lambda function |
 | `document_lambda_function_name` | Name of the Lambda function |
+| `validation_lambda_invoke_arn` | Invoke ARN of the validation Lambda — consumed by the apiGateway module's `AWS_PROXY` integration |
 
 ## Cross-module dependencies
 
