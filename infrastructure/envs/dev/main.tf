@@ -91,3 +91,10 @@ module "api_gateway" {
   validate_lambda_function_name = var.validate_lambda_function_name
   validate_lambda_invoke_arn    = module.document_lambda.validation_lambda_invoke_arn
 }
+
+module "sqs" {
+  source         = "../../modules/sqs"
+  sqs_queue_name = var.sqs_queue_name
+  sqs_dlq_name   = var.sqs_dlq_name
+
+}

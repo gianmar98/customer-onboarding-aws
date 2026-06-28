@@ -53,4 +53,5 @@ TestZipUpload/*
 #Local test fixtures (sample events, payloads, scratch files)
 TESTS/
 # aws s3 cp 8d247914.zip s3://documentbucket-aci1-dev/zipped/
-# aws s3 cp 9c358026.zip s3://documentbucket-aci1-dev/zipped/
+# aws s3 cp 9c358026.zip s3://documentbucket-aci1-dev/zipped/__pycache__/
+*.pyc

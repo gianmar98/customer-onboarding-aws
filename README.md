@@ -11,6 +11,7 @@ All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-pr
 - **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation the handler: (1) downloads the zip, extracts into `/tmp/unzipped/`, re-uploads each file to the `unzipped/` prefix in S3; (2) parses `<app_uuid>_details.csv` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) calls Rekognition `compare_faces` passing selfie and license as S3 object references with `SimilarityThreshold=80`, sets `LICENSE_SELFIE_MATCH = True/False`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes to SNS if the face match failed; (6) calls Textract `analyze_id` to extract the license's identity fields; (7) exact-string-compares the CSV subset vs the Textract subset, writes `LICENSE_DETAILS_MATCH`, and publishes to SNS on mismatch. The handler **does not raise on a mismatch** — every check runs each invocation and the outcome is recorded via the two DynamoDB flags + SNS. The DynamoDB table name is passed as the `TABLE` env variable; the SNS topic ARN is passed as `TOPIC` (both wired via Terraform env variables). Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus three **customer-managed** policies: least-privilege CloudWatch Logs, `rekognition:CompareFaces`, and `textract:AnalyzeID`. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config`. A second **validation Lambda** (`ValidateLicenseLambdaFunction`, Python 3.13, `validate_lambda.lambda_handler`) provides mock 3rd-party license validation behind the API Gateway, with its own role and CloudWatch Logs policy.
 - **SNS** — `ApplicationNotifications` topic with email subscription, KMS-encrypted
 - **API Gateway** — `ValidateLicenseApi`, an HTTP API exposing `POST /license` on the `$default` stage. An `AWS_PROXY` integration invokes `ValidateLicenseLambdaFunction`. Outputs the invoke URL as `license_validation_post_api_invoke_url`.
+- **SQS** — `LicenseQueue` (standard, 300 s visibility timeout) with a redrive policy to `LicenseDeadLetterQueue` after 5 failed receives; a redrive-allow policy scopes the DLQ to that one source queue. Not yet wired to any other module (no outputs exposed).
 
 All resources deploy to `us-east-1`.
 
@@ -49,14 +50,19 @@ All resources deploy to `us-east-1`.
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
-│   │   └── apiGateway/        # ValidateLicenseApi HTTP API (POST /license) -> validation Lambda
-│   │       ├── apigw.tf
+│   │   ├── apiGateway/        # ValidateLicenseApi HTTP API (POST /license) -> validation Lambda
+│   │   │   ├── apigw.tf
+│   │   │   ├── variables.tf
+│   │   │   └── outputs.tf
+│   │   └── sqs/               # LicenseQueue + LicenseDeadLetterQueue (DLQ)
+│   │       ├── sqs.tf
 │   │       ├── variables.tf
-│   │       └── outputs.tf
+│   │       ├── outputs.tf      # empty — no outputs exposed yet
+│   │       └── README.md
 │   └── envs/
 │       └── dev/
 │           ├── backend.tf       # state at envs/dev/terraform.tfstate
-│           ├── main.tf          # composes all 5 sub-modules
+│           ├── main.tf          # composes all 6 sub-modules
 │           ├── variables.tf     # pass-through declarations
 │           ├── outputs.tf       # forwards each sub-module's outputs
 │           └── terraform.tfvars # gitignored

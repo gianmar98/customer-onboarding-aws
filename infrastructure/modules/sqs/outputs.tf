@@ -1,0 +1,9 @@
+output "license_queue_arn" {
+  description = "This is the ARN of the default SQS licence queue"
+  value = aws_sqs_queue.license_queue.arn
+}
+
+output "license_dead_letter_queue_arn" {
+  description = "This is the ARN of the DLQ SQS licence queue"
+  value = aws_sqs_queue.license_dead_letter_queue.arn
+}
