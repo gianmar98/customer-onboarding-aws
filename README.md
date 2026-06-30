@@ -8,10 +8,10 @@ All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-pr
 
 - **S3** — document storage bucket (TLS-only, public access blocked, AES256 SSE, `force_destroy = true`). Also creates an empty `zipped/` placeholder object so the Lambda's trigger prefix exists before the first upload.
 - **DynamoDB** — `CustomerMetadataTable` (provisioned capacity with optional autoscaling, partition key `APP_UUID`)
-- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation the handler: (1) downloads the zip, extracts into `/tmp/unzipped/`, re-uploads each file to the `unzipped/` prefix in S3; (2) parses `<app_uuid>_details.csv` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) calls Rekognition `compare_faces` passing selfie and license as S3 object references with `SimilarityThreshold=80`, sets `LICENSE_SELFIE_MATCH = True/False`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes to SNS if the face match failed; (6) calls Textract `analyze_id` to extract the license's identity fields; (7) exact-string-compares the CSV subset vs the Textract subset, writes `LICENSE_DETAILS_MATCH`, and publishes to SNS on mismatch. The handler **does not raise on a mismatch** — every check runs each invocation and the outcome is recorded via the two DynamoDB flags + SNS. The DynamoDB table name is passed as the `TABLE` env variable; the SNS topic ARN is passed as `TOPIC` (both wired via Terraform env variables). Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus three **customer-managed** policies: least-privilege CloudWatch Logs, `rekognition:CompareFaces`, and `textract:AnalyzeID`. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config`. A second **validation Lambda** (`ValidateLicenseLambdaFunction`, Python 3.13, `validate_lambda.lambda_handler`) provides mock 3rd-party license validation behind the API Gateway, with its own role and CloudWatch Logs policy.
+- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation the handler: (1) downloads the zip, extracts into `/tmp/unzipped/`, re-uploads each file to the `unzipped/` prefix in S3; (2) parses `<app_uuid>_details.csv` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) calls Rekognition `compare_faces` passing selfie and license as S3 object references with `SimilarityThreshold=80`, sets `LICENSE_SELFIE_MATCH = True/False`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes to SNS if the face match failed; (6) calls Textract `analyze_id` to extract the license's identity fields; (7) exact-string-compares the CSV subset vs the Textract subset, writes `LICENSE_DETAILS_MATCH`, and publishes to SNS on mismatch. The handler **does not raise on a mismatch** — every check runs each invocation and the outcome is recorded via the two DynamoDB flags + SNS. The DynamoDB table name is passed as the `TABLE` env variable; the SNS topic ARN is passed as `TOPIC` (both wired via Terraform env variables). Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus three **customer-managed** policies: least-privilege CloudWatch Logs, `rekognition:CompareFaces`, and `textract:AnalyzeID`. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config`. A second **validation Lambda** (`ValidateLicenseLambdaFunction`, Python 3.13, `validate_lambda.lambda_handler`) provides mock 3rd-party license validation behind the API Gateway, with its own role and CloudWatch Logs policy. A third **submit-license Lambda** (`SubmitLicenseLambdaFunction`, Python 3.13, `submit_license.lambda_handler`) is triggered by an `aws_lambda_event_source_mapping` polling `LicenseQueue` (`batch_size = 1`); its role carries a CloudWatch Logs policy and an SQS poll policy (`ReceiveMessage`/`DeleteMessage`/`GetQueueAttributes`) scoped to the queue. The handler is currently a placeholder that logs the invocation to CloudWatch.
 - **SNS** — `ApplicationNotifications` topic with email subscription, KMS-encrypted
 - **API Gateway** — `ValidateLicenseApi`, an HTTP API exposing `POST /license` on the `$default` stage. An `AWS_PROXY` integration invokes `ValidateLicenseLambdaFunction`. Outputs the invoke URL as `license_validation_post_api_invoke_url`.
-- **SQS** — `LicenseQueue` (standard, 300 s visibility timeout) with a redrive policy to `LicenseDeadLetterQueue` after 5 failed receives; a redrive-allow policy scopes the DLQ to that one source queue. Not yet wired to any other module (no outputs exposed).
+- **SQS** — `LicenseQueue` (standard, 300 s visibility timeout) with a redrive policy to `LicenseDeadLetterQueue` after 5 failed receives; a redrive-allow policy scopes the DLQ to that one source queue. The queue ARN is exposed as `sqs_license_queue_arn` and wired into the lambda module to trigger the submit-license Lambda.
 
 All resources deploy to `us-east-1`.
 
@@ -37,10 +37,12 @@ All resources deploy to `us-east-1`.
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
-│   │   ├── lambda/            # IAM (role + inline + managed), Lambda function, log group, S3 trigger
-│   │   │   ├── lambda_policies.tf          # role, inline policy, managed CW policy + attachment, log group
-│   │   │   ├── document_lambda_function.tf # function, archive_file, S3 notification, invoke permission
-│   │   │   ├── src/                        # Python handler source (s3_upload.py, validate_lambda.py)
+│   │   ├── lambda/            # IAM (roles + inline + managed), 3 Lambda functions, log groups, S3 + SQS triggers
+│   │   │   ├── lambda_policies.tf              # required_providers, roles, inline + managed policies, attachments, log groups
+│   │   │   ├── document_lambda_function.tf     # document function, archive_file, S3 notification, invoke permission
+│   │   │   ├── validate_lambda_function.tf     # validation function + archive_file
+│   │   │   ├── submit_license_lambda_function.tf # submit-license function + archive_file + SQS event source mapping
+│   │   │   ├── src/                            # Python handlers (s3_upload.py, validate_lambda.py, submit_license.py)
 │   │   │   ├── build/                      # archive_file zip output (gitignored)
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
@@ -57,7 +59,7 @@ All resources deploy to `us-east-1`.
 │   │   └── sqs/               # LicenseQueue + LicenseDeadLetterQueue (DLQ)
 │   │       ├── sqs.tf
 │   │       ├── variables.tf
-│   │       ├── outputs.tf      # empty — no outputs exposed yet
+│   │       ├── outputs.tf      # exposes sqs_license_queue_arn (+ DLQ arn)
 │   │       └── README.md
 │   └── envs/
 │       └── dev/
@@ -156,7 +158,7 @@ Every resource inherits these tags via the provider's `default_tags` block:
 | `terraform-aws-modules/s3-bucket/aws`      | `5.12.0`   |
 | `terraform-aws-modules/dynamodb-table/aws` | `5.5.0`    |
 | `terraform-aws-modules/sns/aws`            | `7.1.0`    |
-| `hashicorp/aws` provider                   | `~> 6.4` (locked at 6.46.0) |
+| `hashicorp/aws` provider                   | `~> 6.4` (locked at 6.52.0) |
 
 ## Notes
 

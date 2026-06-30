@@ -21,11 +21,11 @@ resource "aws_lambda_function" "validation_lambda_function" {
 
   # timeout = var.document_lambda_function_timeout
 
-  # logging_config {
-  #   log_group  = aws_cloudwatch_log_group.document_lambda_logs.name
-  #   log_format = "Text"
-  # }
-  #
+  logging_config {
+    log_group  = aws_cloudwatch_log_group.validation_lambda_logs.name
+    log_format = "Text"
+  }
+
   # environment {
   #   variables = {
   #     TABLE = var.dynamodb_document_table_name

@@ -71,6 +71,10 @@ module "document_lambda" {
   validate_lambda_function_name                 = var.validate_lambda_function_name
   validate_lambda_role_name                     = var.validate_lambda_role_name
   validation_lambda_cloudwatch_logs_policy_name = var.validation_lambda_cloudwatch_logs_policy_name
+  #Submit License Lambda
+  submit_license_lambda_function_name               = "${var.submit_license_lambda_function_name}${local.env_suffix}"
+  submit_license_lambda_role_name                   = "${var.submit_license_lambda_role_name}${local.env_suffix}"
+  submit_license_lambda_cloudwatch_logs_policy_name = "${var.submit_license_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
 
   #External
   document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn
@@ -81,6 +85,8 @@ module "document_lambda" {
   lambda_textract_analyze_id_policy_name         = var.lambda_textract_analyze_id_policy_name
   sns_topic_arn                                  = module.app_notification_sns.sns_topic_arn
   sns_topic_name                                 = module.app_notification_sns.sns_topic_name
+  sqs_license_queue_arn                          = module.sqs.sqs_license_queue_arn
+  sqs_submit_license_policy_name                 = "${var.sqs_submit_license_policy_name}${local.env_suffix}"
 }
 
 module "api_gateway" {
@@ -96,5 +102,4 @@ module "sqs" {
   source         = "../../modules/sqs"
   sqs_queue_name = var.sqs_queue_name
   sqs_dlq_name   = var.sqs_dlq_name
-
 }

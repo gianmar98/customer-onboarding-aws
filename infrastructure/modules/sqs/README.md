@@ -17,9 +17,13 @@ Provisions the `LicenseQueue` standard queue and its `LicenseDeadLetterQueue` de
 
 ## Outputs
 
-None yet — the queue ARN/URL are not exposed. Add outputs here when another module needs to produce to or consume from the queue (see the cross-module pattern in the root `CLAUDE.md`).
+| Name | Description |
+|---|---|
+| `sqs_license_queue_arn` | ARN of `license_queue` — consumed by the lambda module's event source mapping + SQS IAM policy (flows through the env as `sqs_license_queue_arn`) |
+| `sqs_license_dead_letter_queue_arn` | ARN of `license_dead_letter_queue` |
 
 ## Notes
 
 - Both queues are standard (not FIFO), matching the lab steps.
-- The module call in `envs/dev/main.tf` passes the names directly without the `${local.env_suffix}` the other modules use, so dev/prod would collide on queue names. Add the suffix before standing up a second env.
+- `sqs_license_queue_arn` feeds the **submit license Lambda** — the env wires `module.sqs.sqs_license_queue_arn` into `module.document_lambda`, where it scopes the SQS poll policy and is the `event_source_arn` of the event source mapping.
+- The module call in `envs/dev/main.tf` passes the queue names directly without the `${local.env_suffix}` the other modules use, so dev/prod would collide on queue names. Add the suffix before standing up a second env.

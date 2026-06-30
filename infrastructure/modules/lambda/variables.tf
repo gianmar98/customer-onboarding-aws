@@ -64,7 +64,22 @@ variable "validation_lambda_cloudwatch_logs_policy_name" {
   type        = string
 }
 
+# SUBMIT LICENSE Lambda --------------------------------
+variable "submit_license_lambda_function_name" {
+  description = "This is the name for my Lambda function to submit licenses"
+  type        = string
+}
 
+
+variable "submit_license_lambda_role_name" {
+  description = "This is the name of the Role of my submit license lambda function"
+  type        = string
+}
+
+variable "submit_license_lambda_cloudwatch_logs_policy_name" {
+  description = "Name of the CloudWatch Logs Policy for my submit license Lambda"
+  type        = string
+}
 
 
 #  OUTPUTS TO USE --------------------------
@@ -95,6 +110,16 @@ variable "sns_topic_name" {
   description = "Name of the SNS Topic that Lambda needs as ENV variable"
   type        = string
 }
+# SQS
+variable "sqs_license_queue_arn" {
+  description = "This is the ARN of the main license submission SQS queue"
+  type        = string
+}
+variable "sqs_submit_license_policy_name" {
+  description = "This is the name of the policy that allows SQS to invoke lambda"
+  type        = string
+}
+
 
 
 

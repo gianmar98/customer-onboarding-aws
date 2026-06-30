@@ -1,0 +1,67 @@
+# Package the Lambda function code
+data "archive_file" "submit_license_lambda_function_archive_file" {
+  type        = "zip"
+  source_file = "${path.module}/src/submit_license.py"
+  output_path = "${path.module}/build/submit_license.zip"
+}
+
+# Lambda function
+resource "aws_lambda_function" "submit_license_lambda_function" {
+  description   = ""
+  filename      = data.archive_file.submit_license_lambda_function_archive_file.output_path
+  function_name = var.submit_license_lambda_function_name
+  role          = aws_iam_role.submit_license_lambda_role.arn
+  handler       = "submit_license.lambda_handler"
+
+  #Hash being shipped. If this value differs from the original one, treat the function as changed and redeploy it.
+  source_code_hash = data.archive_file.submit_license_lambda_function_archive_file.output_base64sha256
+
+  runtime = "python3.13"
+
+  # timeout = var.document_lambda_function_timeout
+
+  logging_config {
+    log_group  = aws_cloudwatch_log_group.submit_license_lambda_logs.name
+    log_format = "Text"
+  }
+
+  # environment {
+  #   variables = {
+  #     VALIDATE_LICENSE_API = var.dynamodb_document_table_name
+  #   }
+  # }
+}
+
+resource "aws_lambda_event_source_mapping" "sqs_trigger_submit_license_lambda" {
+  event_source_arn = var.sqs_license_queue_arn
+  function_name    = aws_lambda_function.submit_license_lambda_function.arn
+  batch_size       = 1
+
+  # scaling_config {
+  #   maximum_concurrency = 100
+  # }
+}
+
+
+# resource "aws_s3_bucket_notification" "document_bucket_notification" {
+#   bucket = var.document_s3_bucket_name
+#
+#   lambda_function {
+#     lambda_function_arn = aws_lambda_function.document_lambda_function.arn
+#     events              = ["s3:ObjectCreated:Put"]
+#     filter_prefix       = "zipped/"
+#   }
+#
+#   depends_on = [aws_lambda_permission.allow_s3_invoke]
+# }
+#
+#
+# resource "aws_lambda_permission" "allow_s3_invoke" {
+#   statement_id  = "AllowS3Invoke"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.document_lambda_function.function_name
+#   principal     = "s3.amazonaws.com"
+#   source_arn    = var.document_s3_bucket_arn
+# }
+
+

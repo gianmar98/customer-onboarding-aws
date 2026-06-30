@@ -80,6 +80,25 @@ variable "validation_lambda_cloudwatch_logs_policy_name" {
   type        = string
 }
 
+variable "submit_license_lambda_function_name" {
+  description = "This is the name for my Lambda function to validate my documents"
+  type        = string
+}
+
+variable "submit_license_lambda_role_name" {
+  description = "This is the name of the Role of my validation lambda function"
+  type        = string
+}
+
+variable "submit_license_lambda_cloudwatch_logs_policy_name" {
+  description = "Name of the CloudWatch Logs Policy for my Validation Lambda"
+  type        = string
+}
+
+variable "sqs_submit_license_policy_name" {
+  description = "This is the name of the policy that allows SQS to invoke lambda"
+  type        = string
+}
 # DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
   description = "Name of the customer metadata DynamoDB table"

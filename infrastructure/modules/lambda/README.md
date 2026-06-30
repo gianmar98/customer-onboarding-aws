@@ -1,16 +1,20 @@
 # Lambda Module
 
-Provisions the document-handling Lambda function, its execution role + policies, its CloudWatch log group, and the S3 event notification that triggers it.
+Provisions three Lambda functions — the document-handling Lambda, the mock validation Lambda, and the SQS-triggered submit-license Lambda — along with their execution roles + policies, CloudWatch log groups, and the event sources that trigger them (S3 notification for the document Lambda, SQS event source mapping for the submit-license Lambda).
 
-> Resource names are env-stamped **before** they reach this module — `envs/dev/main.tf` appends `-${project_environment}` to each name input. The module itself is env-agnostic.
+> Resource names are env-stamped **before** they reach this module — `envs/dev/main.tf` appends `-${project_environment}` to each name input. The module itself is env-agnostic. (The validation Lambda names are the exception — they're passed in **without** the suffix.)
+>
+> This module declares its own `required_providers` block (`aws = "~> 6.4"`) at the top of `lambda_policies.tf` — keep it a range, not an exact pin, or it will conflict with the sibling modules' constraints during `terraform init`.
 
 ## Files
 
-- `lambda_policies.tf` — IAM roles, inline policy (S3/DynamoDB/SNS), CloudWatch Logs policies + attachments, Rekognition policy + attachment, Textract policy + attachment, and log groups for both Lambda functions.
+- `lambda_policies.tf` — `required_providers`, IAM roles, inline policy (S3/DynamoDB/SNS), CloudWatch Logs policies + attachments, Rekognition policy + attachment, Textract policy + attachment, the submit-license SQS poll policy + attachment, and log groups for all three Lambda functions.
 - `document_lambda_function.tf` — `archive_file` packaging, the document Lambda function, the S3 bucket notification, and the `lambda:InvokeFunction` permission for S3.
 - `validate_lambda_function.tf` — `archive_file` packaging and the validation Lambda function (mock 3rd-party license validation).
+- `submit_license_lambda_function.tf` — `archive_file` packaging, the submit-license Lambda function, and the `aws_lambda_event_source_mapping` that wires `LicenseQueue` to it (`batch_size = 1`).
 - `src/s3_upload.py` — Python 3.13 document-processing handler. Full invocation flow: (1) downloads and extracts the triggering zip into `/tmp/unzipped/`, re-uploads each file to `unzipped/` in S3; (2) `parse_csv_ddb` reads `<app_uuid>_details.csv` via `csv.DictReader` + `next()` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) `compare_faces` calls Rekognition `compare_faces` using S3 object references (not local bytes) with `SimilarityThreshold=80`, derives `LICENSE_SELFIE_MATCH = True/False` from `FaceMatches`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes a failure message to SNS if `LICENSE_SELFIE_MATCH` is `False`; (6) `textract_response` extracts the license's identity fields via `analyze_id`; (7) `compare_dictionaries` does an exact string equality check of the CSV vs Textract subsets and writes `LICENSE_DETAILS_MATCH` to DynamoDB, publishing to SNS on mismatch. **The handler does not raise on a mismatch** — all checks run every invocation. Reads `TABLE` and `TOPIC` from environment variables.
 - `src/validate_lambda.py` — Python 3.13 mock validation handler. Reads `driver_license_id` and `validation_override` from the API Gateway event body and returns `validation_override` directly (simulates both true and false validation outcomes).
+- `src/submit_license.py` — Python 3.13 placeholder handler. Currently just prints to CloudWatch Logs so the SQS-trigger wiring can be verified end to end; not yet doing real license-submission work.
 
 ## Resources
 
@@ -42,6 +46,20 @@ Provisions the document-handling Lambda function, its execution role + policies,
 - `data.archive_file.validate_lambda_function_archive_file` — zips `src/validate_lambda.py` to `build/validate_lambda.zip`.
 - `aws_lambda_function.validation_lambda_function` — Python 3.13, handler `validate_lambda.lambda_handler`, `source_code_hash` from the archive. No logging config or environment variables configured yet.
 
+### Submit License Lambda
+
+- `aws_iam_role.submit_license_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"SubmitLicenseLambdaRole"`.
+- `aws_iam_policy.submit_license_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy.
+- `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_submitLicenseLambdaRole` — attaches the CW policy to the submit-license role.
+- `aws_iam_policy.sqs_submit_license_policy` — **customer-managed** policy granting `sqs:ReceiveMessage`/`sqs:DeleteMessage`/`sqs:GetQueueAttributes` scoped to `var.sqs_license_queue_arn` (the canonical poll permissions for an SQS-triggered Lambda; no `aws_lambda_permission` is needed because SQS is a poll source, not a push source).
+- `aws_iam_role_policy_attachment.attach_AmazonSQSFullAccess` — attaches the SQS policy to the submit-license role. *(Resource label is a misnomer — it's the scoped policy above, not the AWS-managed `AmazonSQSFullAccess`.)*
+- `aws_cloudwatch_log_group.submit_license_lambda_logs` — `/aws/lambda/<submit_license_lambda_function_name>`, 14-day retention.
+- `data.archive_file.submit_license_lambda_function_archive_file` — zips `src/submit_license.py` to `build/submit_license.zip`.
+- `aws_lambda_function.submit_license_lambda_function` — Python 3.13, handler `submit_license.lambda_handler`, wired to its log group via `logging_config`. No environment variables yet (commented out).
+- `aws_lambda_event_source_mapping.sqs_trigger_submit_license_lambda` — polls `var.sqs_license_queue_arn` (the `LicenseQueue`) and invokes the function with `batch_size = 1`. Enabled by default.
+
+All submit-license names (function, role, CW policy, SQS policy) **are** env-suffixed by the caller, unlike the validation Lambda.
+
 ## Inputs
 
 | Name | Type | Description |
@@ -64,6 +82,11 @@ Provisions the document-handling Lambda function, its execution role + policies,
 | `sns_topic_name` | `string` | SNS topic name — passed in but unused at runtime |
 | `lambda_rekognition_face_comparison_policy_name` | `string` | Rekognition managed policy name — **not** env-suffixed by the caller |
 | `lambda_textract_analyze_id_policy_name` | `string` | Textract managed policy name (env-suffixed by the caller) |
+| `submit_license_lambda_function_name` | `string` | Submit-license Lambda function name (env-suffixed). Also drives its log group name and CW policy ARN scope. |
+| `submit_license_lambda_role_name` | `string` | Submit-license Lambda IAM role name (env-suffixed) |
+| `submit_license_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the submit-license Lambda (env-suffixed) |
+| `sqs_submit_license_policy_name` | `string` | SQS poll policy name for the submit-license Lambda (env-suffixed) |
+| `sqs_license_queue_arn` | `string` | `LicenseQueue` ARN — scopes the SQS poll policy and is the `event_source_arn` of the event source mapping |
 
 ## Outputs
 
@@ -83,6 +106,7 @@ This module consumes values from all three sibling modules plus two env-level `d
 modules/s3/outputs.tf       → document_bucket_arn, document_bucket_name
 modules/dynamodb/outputs.tf → customer_metadata_table_arn, customer_metadata_table_name
 modules/sns/outputs.tf      → sns_topic_arn, sns_topic_name
+modules/sqs/outputs.tf      → sqs_license_queue_arn
 envs/dev/main.tf            → data.aws_caller_identity, data.aws_region
                              → stamps env suffix via local.env_suffix
                              → passes everything into module "document_lambda"
