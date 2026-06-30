@@ -87,6 +87,8 @@ module "document_lambda" {
   sns_topic_name                                 = module.app_notification_sns.sns_topic_name
   sqs_license_queue_arn                          = module.sqs.sqs_license_queue_arn
   sqs_submit_license_policy_name                 = "${var.sqs_submit_license_policy_name}${local.env_suffix}"
+  validate_license_api_name                      = module.api_gateway.validate_license_api_name
+  validate_license_api_url                       = module.api_gateway.license_validation_invoke_url
 }
 
 module "api_gateway" {

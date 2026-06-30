@@ -70,7 +70,6 @@ variable "submit_license_lambda_function_name" {
   type        = string
 }
 
-
 variable "submit_license_lambda_role_name" {
   description = "This is the name of the Role of my submit license lambda function"
   type        = string
@@ -80,6 +79,11 @@ variable "submit_license_lambda_cloudwatch_logs_policy_name" {
   description = "Name of the CloudWatch Logs Policy for my submit license Lambda"
   type        = string
 }
+
+# variable "submit_license_lambda_api_gw_policy_name" {
+#   description = "Name of the policy that allows submit license lambda send data to API GW"
+#   type = string
+# }
 
 
 #  OUTPUTS TO USE --------------------------
@@ -120,6 +124,17 @@ variable "sqs_submit_license_policy_name" {
   type        = string
 }
 
+# API GW
+
+variable "validate_license_api_name" {
+  description = "This is the name of the API GW that will receive the submission and send it to validate lambda function"
+  type        = string
+}
+
+variable "validate_license_api_url" {
+  description = "The invoke URL for the API GW to use in Submit Lambda function"
+  type        = string
+}
 
 
 

@@ -25,11 +25,13 @@ resource "aws_lambda_function" "submit_license_lambda_function" {
     log_format = "Text"
   }
 
-  # environment {
-  #   variables = {
-  #     VALIDATE_LICENSE_API = var.dynamodb_document_table_name
-  #   }
-  # }
+  environment {
+    variables = {
+      VALIDATE_LICENSE_API     = var.validate_license_api_name
+      VALIDATE_LICENSE_API_URL = var.validate_license_api_url
+      TOPIC = var.sns_topic_name
+    }
+  }
 }
 
 resource "aws_lambda_event_source_mapping" "sqs_trigger_submit_license_lambda" {

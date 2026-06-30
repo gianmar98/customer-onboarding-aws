@@ -1,12 +1,21 @@
 #Generate me a hello world function
 import json
+import boto3
+import os
+import urllib3
 
 #DynamoDB
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table(os.environ['TABLE'])# add ENV variable TABLE
+# dynamodb = boto3.resource('dynamodb')
+# table = dynamodb.Table(os.environ['TABLE'])# add ENV variable TABLE
 
 #API GW
-api_gw = boto3.client('apigatewayv2')
+# Pull the specific API Gateway Invoke URL from Environment Variables
+http = urllib3.PoolManager()
+api_url = os.environ['VALIDATE_LICENSE_API_URL']
+
+#SNS
+# sns = boto3.client('sns')
+# env_topic = os.environ['TOPIC']# add ENV variable TABLE
 
 
 def lambda_handler(event, context):
@@ -23,16 +32,53 @@ def lambda_handler(event, context):
     print(f'Validation Override: {validation_override}')
     print(f'UUid: {uuid}')
     # Your business logic here
-    output_data = {
-        "driver_license_id": {driver_license_id},
-        "validation_override": {validation_override},
-        "uuid": {uuid}
+    # output_data = {
+    #     "driver_license_id": {driver_license_id},
+    #     "validation_override": {validation_override},
+    #     "uuid": {uuid}
+    # }
+    #
+    # return {
+    #     "statusCode": 200,
+    #     "headers": {
+    #         "Content-Type": "application/json"
+    #     },
+    #     "body": json.dumps(output_data)
+    # }
+
+    # Define payload and headers
+    payload = {
+        "driver_license_id": driver_license_id,
+        "validation_override": validation_override,
+        "uuid": uuid
+    }
+    print(f'Payload => {payload}')
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-Key": "your-api-key-if-required"
     }
 
-    return {
-        "statusCode": 200,
-        "headers": {
-            "Content-Type": "application/json"
-        },
-        "body": json.dumps(output_data)
-    }
+    try:
+        # Send the POST request (change to 'GET', 'PUT', etc., as needed)
+        response = http.request(
+            "POST",
+            api_url,
+            body=json.dumps(payload),
+            headers=headers,
+            timeout=5.0  # Timeout in seconds
+        )
+
+        # Parse and return the response data
+        response_data = json.loads(response.data.decode("utf-8"))
+
+        return {
+            "statusCode": response.status,
+            "body": response_data
+        }
+
+    except Exception as e:
+        print(f"Error sending request: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": f"Internal Lambda Error: {str(e)}"
+        }

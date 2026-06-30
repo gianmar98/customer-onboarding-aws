@@ -297,5 +297,7 @@ resource "aws_iam_role_policy_attachment" "attach_AmazonSQSFullAccess" {
   role       = aws_iam_role.submit_license_lambda_role.name
   policy_arn = aws_iam_policy.sqs_submit_license_policy.arn
 }
+# MANAGED API GW POLICY
+# resource "aws_iam_policy" "pass_data_to_api_gw" {}
 
 #------------------------------------------------------------------------------
