@@ -75,6 +75,7 @@ module "document_lambda" {
   submit_license_lambda_function_name               = "${var.submit_license_lambda_function_name}${local.env_suffix}"
   submit_license_lambda_role_name                   = "${var.submit_license_lambda_role_name}${local.env_suffix}"
   submit_license_lambda_cloudwatch_logs_policy_name = "${var.submit_license_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
+  submit_license_lambda_policy_name                 = var.submit_license_lambda_policy_name
 
   #External
   document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn

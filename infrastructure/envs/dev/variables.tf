@@ -99,6 +99,11 @@ variable "sqs_submit_license_policy_name" {
   description = "This is the name of the policy that allows SQS to invoke lambda"
   type        = string
 }
+
+variable "submit_license_lambda_policy_name" {
+  description = "Name of the inline policy attached to the Lambda execution role"
+  type        = string
+}
 # DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
   description = "Name of the customer metadata DynamoDB table"

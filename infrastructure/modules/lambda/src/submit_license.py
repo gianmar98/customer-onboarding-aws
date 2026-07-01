@@ -5,8 +5,8 @@ import os
 import urllib3
 
 #DynamoDB
-# dynamodb = boto3.resource('dynamodb')
-# table = dynamodb.Table(os.environ['TABLE'])# add ENV variable TABLE
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ['TABLE'])# add ENV variable TABLE
 
 #API GW
 # Pull the specific API Gateway Invoke URL from Environment Variables
@@ -14,8 +14,8 @@ http = urllib3.PoolManager()
 api_url = os.environ['VALIDATE_LICENSE_API_URL']
 
 #SNS
-# sns = boto3.client('sns')
-# env_topic = os.environ['TOPIC']# add ENV variable TABLE
+sns = boto3.client('sns')
+env_topic = os.environ['TOPIC']
 
 
 def lambda_handler(event, context):
@@ -70,11 +70,35 @@ def lambda_handler(event, context):
 
         # Parse and return the response data
         response_data = json.loads(response.data.decode("utf-8"))
+        print(f'Response => {response_data}')
 
-        return {
-            "statusCode": response.status,
-            "body": response_data
-        }
+        if response_data == True:
+            print("Success")
+            table.update_item(
+                Key={
+                    "APP_UUID":uuid
+                },
+                UpdateExpression="SET LICENSE_VALIDATION = :v_match",
+                ExpressionAttributeValues={
+                    ':v_match': response_data
+                }
+            )
+        else:
+            print("Failure")
+            table.update_item(
+                Key={
+                    "APP_UUID":uuid
+                },
+                UpdateExpression="SET LICENSE_VALIDATION = :v_match",
+                ExpressionAttributeValues={
+                    ':v_match': response_data
+                }
+            )
+            sns.publish(
+                TopicArn=env_topic,
+                Message='License photo validation FAILED',
+                Subject='License photo validation FAILED',
+            )
 
     except Exception as e:
         print(f"Error sending request: {str(e)}")
