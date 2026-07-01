@@ -29,7 +29,8 @@ resource "aws_lambda_function" "submit_license_lambda_function" {
     variables = {
       VALIDATE_LICENSE_API     = var.validate_license_api_name
       VALIDATE_LICENSE_API_URL = var.validate_license_api_url
-      TOPIC = var.sns_topic_name
+      TOPIC                    = var.sns_topic_arn
+      TABLE                    = var.dynamodb_document_table_name
     }
   }
 }

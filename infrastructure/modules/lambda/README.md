@@ -14,7 +14,7 @@ Provisions three Lambda functions — the document-handling Lambda, the mock val
 - `submit_license_lambda_function.tf` — `archive_file` packaging, the submit-license Lambda function, and the `aws_lambda_event_source_mapping` that wires `LicenseQueue` to it (`batch_size = 1`).
 - `src/s3_upload.py` — Python 3.13 document-processing handler. Full invocation flow: (1) downloads and extracts the triggering zip into `/tmp/unzipped/`, re-uploads each file to `unzipped/` in S3; (2) `parse_csv_ddb` reads `<app_uuid>_details.csv` via `csv.DictReader` + `next()` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) `compare_faces` calls Rekognition `compare_faces` using S3 object references (not local bytes) with `SimilarityThreshold=80`, derives `LICENSE_SELFIE_MATCH = True/False` from `FaceMatches`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes a failure message to SNS if `LICENSE_SELFIE_MATCH` is `False`; (6) `textract_response` extracts the license's identity fields via `analyze_id`; (7) `compare_dictionaries` does an exact string equality check of the CSV vs Textract subsets and writes `LICENSE_DETAILS_MATCH` to DynamoDB, publishing to SNS on mismatch. **The handler does not raise on a mismatch** — all checks run every invocation. Reads `TABLE` and `TOPIC` from environment variables.
 - `src/validate_lambda.py` — Python 3.13 mock validation handler. Reads `driver_license_id` and `validation_override` from the API Gateway event body and returns `validation_override` directly (simulates both true and false validation outcomes).
-- `src/submit_license.py` — Python 3.13 placeholder handler. Currently just prints to CloudWatch Logs so the SQS-trigger wiring can be verified end to end; not yet doing real license-submission work.
+- `src/submit_license.py` — Python 3.13 submit-license handler (`batch_size = 1`, so always `event['Records'][0]`). Parses `driver_license_id`, `validation_override`, `uuid` from the SQS record's `body`; POSTs that payload to the third-party validation endpoint at `VALIDATE_LICENSE_API_URL` via `urllib3` and waits for the response; writes `LICENSE_VALIDATION` to DynamoDB via `update_item` on `APP_UUID` for both `True`/`False` outcomes; on `False`, also publishes a failure notification to SNS. Reads `TABLE`, `TOPIC` (must be the topic **ARN**), `VALIDATE_LICENSE_API`, and `VALIDATE_LICENSE_API_URL` from environment variables.
 
 ## Resources
 
@@ -55,7 +55,7 @@ Provisions three Lambda functions — the document-handling Lambda, the mock val
 - `aws_iam_role_policy_attachment.attach_AmazonSQSFullAccess` — attaches the SQS policy to the submit-license role. *(Resource label is a misnomer — it's the scoped policy above, not the AWS-managed `AmazonSQSFullAccess`.)*
 - `aws_cloudwatch_log_group.submit_license_lambda_logs` — `/aws/lambda/<submit_license_lambda_function_name>`, 14-day retention.
 - `data.archive_file.submit_license_lambda_function_archive_file` — zips `src/submit_license.py` to `build/submit_license.zip`.
-- `aws_lambda_function.submit_license_lambda_function` — Python 3.13, handler `submit_license.lambda_handler`, wired to its log group via `logging_config`. No environment variables yet (commented out).
+- `aws_lambda_function.submit_license_lambda_function` — Python 3.13, handler `submit_license.lambda_handler`, wired to its log group via `logging_config`. Exposes `VALIDATE_LICENSE_API`, `VALIDATE_LICENSE_API_URL`, `TOPIC` (SNS topic ARN), and `TABLE` (DynamoDB table name) as runtime env vars.
 - `aws_lambda_event_source_mapping.sqs_trigger_submit_license_lambda` — polls `var.sqs_license_queue_arn` (the `LicenseQueue`) and invokes the function with `batch_size = 1`. Enabled by default.
 
 All submit-license names (function, role, CW policy, SQS policy) **are** env-suffixed by the caller, unlike the validation Lambda.
@@ -87,6 +87,8 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 | `submit_license_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the submit-license Lambda (env-suffixed) |
 | `sqs_submit_license_policy_name` | `string` | SQS poll policy name for the submit-license Lambda (env-suffixed) |
 | `sqs_license_queue_arn` | `string` | `LicenseQueue` ARN — scopes the SQS poll policy and is the `event_source_arn` of the event source mapping |
+| `validate_license_api_name` | `string` | API Gateway API name — passed to the submit-license Lambda as the `VALIDATE_LICENSE_API` environment variable |
+| `validate_license_api_url` | `string` | API Gateway invoke URL (`POST /license`) — passed to the submit-license Lambda as the `VALIDATE_LICENSE_API_URL` environment variable, used to call the third-party validation endpoint |
 
 ## Outputs
 
@@ -103,17 +105,21 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 This module consumes values from all three sibling modules plus two env-level `data` sources. They flow through the env (sub-modules can't reference each other directly):
 
 ```
-modules/s3/outputs.tf       → document_bucket_arn, document_bucket_name
-modules/dynamodb/outputs.tf → customer_metadata_table_arn, customer_metadata_table_name
-modules/sns/outputs.tf      → sns_topic_arn, sns_topic_name
-modules/sqs/outputs.tf      → sqs_license_queue_arn
-envs/dev/main.tf            → data.aws_caller_identity, data.aws_region
-                             → stamps env suffix via local.env_suffix
-                             → passes everything into module "document_lambda"
-                             → wires customer_metadata_table_name → dynamodb_document_table_name
-                             → wires sns_topic_arn → TOPIC env variable (see known issue)
-modules/lambda/variables.tf → receives them as var.*
+modules/s3/outputs.tf         → document_bucket_arn, document_bucket_name
+modules/dynamodb/outputs.tf   → customer_metadata_table_arn, customer_metadata_table_name
+modules/sns/outputs.tf        → sns_topic_arn, sns_topic_name
+modules/sqs/outputs.tf        → sqs_license_queue_arn
+modules/apiGateway/outputs.tf → validate_license_api_name, license_validation_invoke_url
+envs/dev/main.tf              → data.aws_caller_identity, data.aws_region
+                               → stamps env suffix via local.env_suffix
+                               → passes everything into module "document_lambda"
+                               → wires customer_metadata_table_name → dynamodb_document_table_name
+                               → wires sns_topic_arn → TOPIC env variable on both the document and submit-license Lambdas
+                               → wires license_validation_invoke_url → validate_license_api_url → VALIDATE_LICENSE_API_URL
+modules/lambda/variables.tf   → receives them as var.*
 ```
+
+**Watch out:** `TOPIC` must resolve to the SNS topic **ARN**, not its name — `sns:Publish` rejects the bare name with `InvalidParameter: TopicArn`.
 
 ## Notes
 

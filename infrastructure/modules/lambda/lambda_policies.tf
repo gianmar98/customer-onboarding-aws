@@ -1,11 +1,3 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.4"
-    }
-  }
-}
 # Copyright (c) 2026 Giancarlo Martinez
 # SPDX-License-Identifier: MIT
 
@@ -297,7 +289,35 @@ resource "aws_iam_role_policy_attachment" "attach_AmazonSQSFullAccess" {
   role       = aws_iam_role.submit_license_lambda_role.name
   policy_arn = aws_iam_policy.sqs_submit_license_policy.arn
 }
-# MANAGED API GW POLICY
-# resource "aws_iam_policy" "pass_data_to_api_gw" {}
+
+#INLINE S3 & DYNAMODB POLICY
+resource "aws_iam_role_policy" "submit_license_lambda_policy" { # what the identity is allowed to do
+  role = aws_iam_role.submit_license_lambda_role.id
+  name = var.submit_license_lambda_policy_name
+
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # Write and update items to the newly created DynamoDB table.
+        Sid    = "DynamoDBAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ],
+        Resource = var.dynamodb_metadata_table_arn
+      },
+      { # Publish to the newly created SNS Topic.
+        Sid    = "SNSTopicAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "sns:Publish",
+        ],
+        Resource = var.sns_topic_arn
+      },
+    ]
+  })
+}
 
 #------------------------------------------------------------------------------
