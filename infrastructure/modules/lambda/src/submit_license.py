@@ -30,20 +30,6 @@ def lambda_handler(event, context):
     print(f'Drivers License: {driver_license_id}')
     print(f'Validation Override: {validation_override}')
     print(f'UUid: {uuid}')
-    # Your business logic here
-    # output_data = {
-    #     "driver_license_id": {driver_license_id},
-    #     "validation_override": {validation_override},
-    #     "uuid": {uuid}
-    # }
-    #
-    # return {
-    #     "statusCode": 200,
-    #     "headers": {
-    #         "Content-Type": "application/json"
-    #     },
-    #     "body": json.dumps(output_data)
-    # }
 
     # Define payload and headers
     payload = {

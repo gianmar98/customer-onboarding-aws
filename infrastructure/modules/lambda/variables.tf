@@ -119,8 +119,17 @@ variable "sqs_license_queue_arn" {
   description = "This is the ARN of the main license submission SQS queue"
   type        = string
 }
+variable "sqs_license_queue_name" {
+  description = "This is the name of the SQS queue my document lambda function will be writing to"
+  type        = string
+}
 variable "sqs_submit_license_policy_name" {
   description = "This is the name of the policy that allows SQS to invoke lambda"
+  type        = string
+}
+
+variable "sqs_url" {
+  description = "URL of SQS to send payload from Document Lambda Function"
   type        = string
 }
 

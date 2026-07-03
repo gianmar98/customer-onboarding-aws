@@ -8,6 +8,7 @@ import os
 import csv
 import zipfile
 import boto3
+from botocore.exceptions import ClientError  # added: referenced in the send_message except handler; without this import a send failure raises NameError instead of being caught.
 import shutil  # added: needed for shutil.rmtree() to wipe /tmp/unzipped/ between runs. Lambda reuses warm containers, so without this stale files from a previous invocation leak into the next one.
 
 unzipped_dir = "/tmp/unzipped/"
@@ -29,6 +30,10 @@ env_topic = os.environ['TOPIC']# add ENV variable TABLE
 
 #TEXTRACT
 textract = boto3.client('textract')
+
+#SQS
+sqs = boto3.client('sqs')
+QUEUE_URL = os.environ['SQS_URL']
 
 def unzip_object(bucket, key):
     """Download a zip from S3, extract it locally, and return its file list.
@@ -221,6 +226,36 @@ def lambda_handler(event, context):
         # Extract the license fields and verify they match the submitted CSV.
         textract_dict = textract_response(bucket, license_key)            # added: now returns a dict of license fields...
         compare_dictionaries(app_uuid, details_dict, textract_dict)      # added: ...which we compare against the CSV and record as LICENSE_DETAILS_MATCH. This is the validation step that was previously missing entirely.
+
+
+        # Send to License SQS Queue to submit and validate lambda function
+        print(f"Sending message to SQS queue {QUEUE_URL}")
+        sqs_message_body = {
+            "driver_license_id": details_dict['DOCUMENT_NUMBER'],
+            "validation_override": True,
+            "uuid": app_uuid,
+        }
+
+        try:
+            # 2. Send the message to the SQS queue
+            response = sqs.send_message(
+                QueueUrl=QUEUE_URL,
+                MessageBody=json.dumps(sqs_message_body),
+            )
+
+            # 3. Return the SQS Message ID on success
+            return {
+                "statusCode": 200,
+                "body": f"Message sent successfully. MessageId: {response['MessageId']}"
+            }
+
+        except ClientError as e:
+            print(f"AWS ClientError: {e.response['Error']['Message']}")
+            return {
+                "statusCode": 500,
+                "body": "Failed to send message to SQS."
+            }
+
 
     finally:
         if os.path.exists(unzipped_dir):  # added: always wipe /tmp/unzipped/ on the way out so a warm container starts the next invocation clean and we don't slowly fill the 512MB /tmp budget.

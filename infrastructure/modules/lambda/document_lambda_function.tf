@@ -27,8 +27,9 @@ resource "aws_lambda_function" "document_lambda_function" {
 
   environment {
     variables = {
-      TABLE = var.dynamodb_document_table_name
-      TOPIC = var.sns_topic_arn
+      TABLE   = var.dynamodb_document_table_name
+      TOPIC   = var.sns_topic_arn
+      SQS_URL = var.sqs_url
     }
   }
 }
