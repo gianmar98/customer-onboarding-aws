@@ -15,6 +15,6 @@ def lambda_handler(event, context):
 
     response = {}
     response['statusCode'] = 200
-    response['body'] = override_parameter
+    response['body'] = json.dumps(override_parameter)
     print(f"Response: {response}")
     return response

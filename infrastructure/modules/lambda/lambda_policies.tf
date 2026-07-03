@@ -35,7 +35,7 @@ resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, 
   })
 }
 
-#INLINE S3 & DYNAMODB POLICY
+#INLINE S3 & DYNAMODB & SQS QUEUE POLICY
 resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is allowed to do
   role = aws_iam_role.document_lambda_role.id
   name = var.document_lambda_policy_name
@@ -71,6 +71,16 @@ resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is
         ],
         Resource = var.sns_topic_arn
       },
+      {
+        "Sid" : "AllowToWriteToSQS",
+        "Effect" : "Allow",
+        "Action" : [
+          "sqs:SendMessage"
+        ],
+        "Resource" : [
+          var.sqs_license_queue_arn
+        ]
+      }
     ]
   })
 }
