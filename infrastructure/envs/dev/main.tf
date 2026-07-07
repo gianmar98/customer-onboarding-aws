@@ -84,6 +84,11 @@ module "document_lambda" {
   unzip_lambda_function_role_name                  = var.unzip_lambda_function_role_name
   unzip_license_lambda_cloudwatch_logs_policy_name = var.unzip_license_lambda_cloudwatch_logs_policy_name
 
+  #Write to Dynamo Lambda
+  write_to_dynamo_lambda_function_name               = "${var.write_to_dynamo_lambda_function_name}${local.env_suffix}"
+  write_to_dynamo_lambda_function_role_name          = var.write_to_dynamo_lambda_function_role_name
+  write_to_dynamo_lambda_cloudwatch_logs_policy_name = var.write_to_dynamo_lambda_cloudwatch_logs_policy_name
+
   #External
   document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn
   document_s3_bucket_name                        = module.document_s3_bucket.document_bucket_name

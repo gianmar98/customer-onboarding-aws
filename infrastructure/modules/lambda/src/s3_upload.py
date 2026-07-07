@@ -61,7 +61,6 @@ def unzip_object(bucket, key):
 
     return [f for f in os.listdir(unzipped_dir) if not f.startswith('__')]  # added: filter out '__'-prefixed entries (e.g. macOS's __MACOSX folder). Without this, those junk entries get re-uploaded to S3 and can break the later file-name math.
 
-
 def parse_csv_ddb(app_uuid, details_file):
     "Load CSV and save to dynamo"
     with open(details_file, 'r', encoding="utf-8") as file:
@@ -169,8 +168,6 @@ def compare_dictionaries(app_uuid, details_dict, textract_dict):
         )
 
     return comparison
-
-
 
 def lambda_handler(event, context):
     """Entry point invoked by S3 on ``s3:ObjectCreated:Put`` under ``zipped/``.

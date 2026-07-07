@@ -1,4 +1,7 @@
-
+# Portions of this code are adapted from AWS Training and Certification:
+# "Capstone Project: Building a Customer Onboarding App - Lab 09".
+# Original lab code (c) Amazon Web Services, Inc. Adapted by Giancarlo Martinez
+# for ACI Capstone 1.
 import os
 import zipfile
 import boto3
@@ -81,4 +84,10 @@ def lambda_handler(event, context):
     finally:
         if os.path.exists(unzipped_dir):  # added: always wipe /tmp/unzipped/ on the way out so a warm container starts the next invocation clean and we don't slowly fill the 512MB /tmp budget.
             shutil.rmtree(unzipped_dir)
+
+
+#TEST COMMAND
+# aws lambda invoke --function-name UnzipLambdaFunction \
+# --cli-binary-format raw-in-base64-out \
+# --payload '{"detail": {"bucket": {"name": "INSERT_YOUR_DOCUMENT_BUCKET"}, "object": {"key": "zipped/8d247914.zip"}}}' response1.json
 
