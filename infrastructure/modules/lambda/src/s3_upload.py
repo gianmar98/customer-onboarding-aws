@@ -188,6 +188,7 @@ def lambda_handler(event, context):
             ``Records[0].s3.object.key`` are read.
         context: Standard Lambda context object (unused).
     """
+    # print(f"Full Record {event}")
     record = event['Records'][0]
     bucket = record['s3']['bucket']['name']
     key = record['s3']['object']['key']

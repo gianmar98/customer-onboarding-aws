@@ -85,6 +85,22 @@ variable "submit_license_lambda_policy_name" {
   type        = string
 }
 
+# UNZIP lambda function
+variable "unzip_lambda_function_name" {
+  description = "Name of the lambda function to unzip the file and extract the app_uuid"
+  type        = string
+}
+
+variable "unzip_lambda_function_role_name" {
+  description = "Name of the role being assumed by the Lambda function that will unzip the license file"
+  type        = string
+}
+
+variable "unzip_license_lambda_cloudwatch_logs_policy_name" {
+  description = "Name of the policy so unzip license lambda can send logs to cloudwatch"
+  type        = string
+}
+
 
 #  OUTPUTS TO USE --------------------------
 # S3
@@ -127,7 +143,6 @@ variable "sqs_submit_license_policy_name" {
   description = "This is the name of the policy that allows SQS to invoke lambda"
   type        = string
 }
-
 variable "sqs_url" {
   description = "URL of SQS to send payload from Document Lambda Function"
   type        = string
@@ -138,7 +153,6 @@ variable "validate_license_api_name" {
   description = "This is the name of the API GW that will receive the submission and send it to validate lambda function"
   type        = string
 }
-
 variable "validate_license_api_url" {
   description = "The invoke URL for the API GW to use in Submit Lambda function"
   type        = string
