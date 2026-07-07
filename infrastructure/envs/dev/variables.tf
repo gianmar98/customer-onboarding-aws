@@ -104,6 +104,23 @@ variable "submit_license_lambda_policy_name" {
   description = "Name of the inline policy attached to the Lambda execution role"
   type        = string
 }
+
+variable "unzip_lambda_function_name" {
+  description = "Name of the lambda function to unzip the file and extract the app_uuid"
+  type        = string
+}
+
+variable "unzip_lambda_function_role_name" {
+  description = "Name of the role being assumed by the Lambda function that will unzip the license file"
+  type        = string
+}
+
+variable "unzip_license_lambda_cloudwatch_logs_policy_name" {
+  description = "Name of the policy so unzip license lambda can send logs to cloudwatch"
+  type        = string
+}
+
+
 # DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
   description = "Name of the customer metadata DynamoDB table"

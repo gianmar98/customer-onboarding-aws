@@ -10,10 +10,14 @@ locals {
   validation_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
   validation_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.validation_log_group_name}:*"
 
-
   submit_license_log_group_name        = "/aws/lambda/${var.submit_license_lambda_function_name}"
   submit_license_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
   submit_license_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.submit_license_log_group_name}:*"
+
+
+  unzip_license_log_group_name        = "/aws/lambda/${var.unzip_lambda_function_name}"
+  unzip_license_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
+  unzip_license_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.unzip_license_log_group_name}:*"
 }
 
 #DOCUMENT LAMBDA ROLE -------------------------------------------------------
@@ -328,6 +332,84 @@ resource "aws_iam_role_policy" "submit_license_lambda_policy" { # what the ident
       },
     ]
   })
+}
+
+#------------------------------------------------------------------------------
+
+
+#UNZIP LAMBDA ROLE ------------------------------------------------------------
+resource "aws_iam_role" "unzip_license_lambda_role" {
+  name = var.unzip_lambda_function_role_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = "UnzipLicenseLambdaRole"
+        Principal = { #Trusted entity type (Lambda)
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+#INLINE S3 POLICY
+resource "aws_iam_role_policy" "unzip_lambda_s3_policy" { # what the identity is allowed to do
+  role = aws_iam_role.unzip_license_lambda_role.id
+  name = "UnzipLambdaS3Policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # S3 Get and Put objects from Lambda
+        Sid    = "S3AccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ],
+        Resource = "${var.document_s3_bucket_arn}/*"
+      }
+    ]
+  })
+}
+
+# MANAGED CLOUDWATCH POLICY
+resource "aws_iam_policy" "unzip_license_lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
+  name = var.unzip_license_lambda_cloudwatch_logs_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # Create Log Group
+        Sid    = "CloudWatchLogGroupCreation"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+        ]
+        Resource = local.unzip_license_logs_group_create_arn
+      },
+      { # Resource is scoped to this Lambda's own log group
+        Sid    = "CloudWatchLogsStreamAndPut"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = local.unzip_license_log_stream_arn_prefix
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_unzipLicenseLambdaRole" {
+  policy_arn = aws_iam_policy.unzip_license_lambda_cloudwatch_logs_policy.arn
+  role       = aws_iam_role.unzip_license_lambda_role.name
+}
+resource "aws_cloudwatch_log_group" "unzip_license_lambda_logs" {
+  name              = local.unzip_license_log_group_name
+  retention_in_days = 14
 }
 
 #------------------------------------------------------------------------------
