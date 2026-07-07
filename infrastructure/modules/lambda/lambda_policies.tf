@@ -14,10 +14,13 @@ locals {
   submit_license_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
   submit_license_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.submit_license_log_group_name}:*"
 
-
   unzip_license_log_group_name        = "/aws/lambda/${var.unzip_lambda_function_name}"
   unzip_license_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
   unzip_license_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.unzip_license_log_group_name}:*"
+
+  write_to_dynamo_log_group_name        = "/aws/lambda/${var.write_to_dynamo_lambda_function_name}"
+  write_to_dynamo_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
+  write_to_dynamo_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.write_to_dynamo_log_group_name}:*"
 }
 
 #DOCUMENT LAMBDA ROLE -------------------------------------------------------
@@ -38,7 +41,6 @@ resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, 
     ]
   })
 }
-
 #INLINE S3 & DYNAMODB & SQS QUEUE POLICY
 resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is allowed to do
   role = aws_iam_role.document_lambda_role.id
@@ -88,7 +90,6 @@ resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is
     ]
   })
 }
-
 #MANAGED CLOUDWATCH POLICY
 resource "aws_iam_policy" "lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
   name = var.lambda_cloudwatch_logs_policy_name
@@ -125,7 +126,6 @@ resource "aws_cloudwatch_log_group" "document_lambda_logs" {
   name              = local.log_group_name
   retention_in_days = 14
 }
-
 #MANAGED REKOGNITION POLICY
 resource "aws_iam_policy" "rekognition_face_comparison_policy" {
   name = var.lambda_rekognition_face_comparison_policy_name
@@ -146,7 +146,6 @@ resource "aws_iam_role_policy_attachment" "attach_rekognition_policy_to_lambda" 
   policy_arn = aws_iam_policy.rekognition_face_comparison_policy.arn
   role       = aws_iam_role.document_lambda_role.name
 }
-
 # MANAGED TEXTRACT POLICY
 resource "aws_iam_policy" "textract_policy" {
   name = var.lambda_textract_analyze_id_policy_name
@@ -222,7 +221,6 @@ resource "aws_cloudwatch_log_group" "validation_lambda_logs" {
   name              = local.validation_log_group_name
   retention_in_days = 14
 }
-
 #------------------------------------------------------------------------------
 
 
@@ -303,7 +301,6 @@ resource "aws_iam_role_policy_attachment" "attach_AmazonSQSFullAccess" {
   role       = aws_iam_role.submit_license_lambda_role.name
   policy_arn = aws_iam_policy.sqs_submit_license_policy.arn
 }
-
 #INLINE S3 & DYNAMODB POLICY
 resource "aws_iam_role_policy" "submit_license_lambda_policy" { # what the identity is allowed to do
   role = aws_iam_role.submit_license_lambda_role.id
@@ -333,7 +330,6 @@ resource "aws_iam_role_policy" "submit_license_lambda_policy" { # what the ident
     ]
   })
 }
-
 #------------------------------------------------------------------------------
 
 
@@ -375,7 +371,6 @@ resource "aws_iam_role_policy" "unzip_lambda_s3_policy" { # what the identity is
     ]
   })
 }
-
 # MANAGED CLOUDWATCH POLICY
 resource "aws_iam_policy" "unzip_license_lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
   name = var.unzip_license_lambda_cloudwatch_logs_policy_name
@@ -411,5 +406,87 @@ resource "aws_cloudwatch_log_group" "unzip_license_lambda_logs" {
   name              = local.unzip_license_log_group_name
   retention_in_days = 14
 }
+#------------------------------------------------------------------------------
 
+#WRITE TO DYNAMO LAMBDA ROLE ------------------------------------------------------------
+resource "aws_iam_role" "write_to_dynamo_lambda_role" {
+  name = var.write_to_dynamo_lambda_function_role_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = "WriteToDynamoLambdaRole"
+        Principal = { #Trusted entity type (Lambda)
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+#INLINE S3 POLICY
+resource "aws_iam_role_policy" "write_to_dynamo_lambda_s3_policy" { # what the identity is allowed to do
+  role = aws_iam_role.write_to_dynamo_lambda_role.id
+  name = "WriteToDynamoLambdaS3Policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # S3 Get object from Lambda (downloads the details CSV, never uploads)
+        Sid    = "S3AccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject"
+        ],
+        Resource = "${var.document_s3_bucket_arn}/*"
+      },
+      { # Write and update items to the newly created DynamoDB table.
+        Sid    = "DynamoDBAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ],
+        Resource = var.dynamodb_metadata_table_arn
+      }
+    ]
+  })
+}
+# MANAGED CLOUDWATCH POLICY
+resource "aws_iam_policy" "write_to_dynamo_lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
+  name = var.write_to_dynamo_lambda_cloudwatch_logs_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # Create Log Group
+        Sid    = "CloudWatchLogGroupCreation"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+        ]
+        Resource = local.write_to_dynamo_logs_group_create_arn
+      },
+      { # Resource is scoped to this Lambda's own log group
+        Sid    = "CloudWatchLogsStreamAndPut"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = local.write_to_dynamo_log_stream_arn_prefix
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_writeToDynamoLambdaRole" {
+  policy_arn = aws_iam_policy.write_to_dynamo_lambda_cloudwatch_logs_policy.arn
+  role       = aws_iam_role.write_to_dynamo_lambda_role.name
+}
+resource "aws_cloudwatch_log_group" "write_to_dynamo_lambda_logs" {
+  name              = local.write_to_dynamo_log_group_name
+  retention_in_days = 14
+}
 #------------------------------------------------------------------------------
