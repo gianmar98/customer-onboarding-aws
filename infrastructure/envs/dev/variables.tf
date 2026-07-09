@@ -135,6 +135,27 @@ variable "write_to_dynamo_lambda_cloudwatch_logs_policy_name" {
   type        = string
 }
 
+# COMPARE FACES lambda function
+variable "compare_faces_lambda_function_name" {
+  description = "Name of the lambda function that will compare the user face and the license"
+  type        = string
+}
+
+variable "compare_faces_lambda_function_role_name" {
+  description = "name of the role the lambda function that compares faces would assume"
+  type        = string
+}
+
+variable "compare_faces_lambda_cloudwatch_logs_policy_name" {
+  description = "name of the cloudwatch logs policy for the compare faceslambda function"
+  type        = string
+}
+
+variable "compare_faces_lambda_policy_name" {
+  description = "Name of the inline policy attached to the Lambda execution role"
+  type        = string
+}
+
 
 # DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
