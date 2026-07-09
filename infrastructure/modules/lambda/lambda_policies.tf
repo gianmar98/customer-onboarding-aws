@@ -21,6 +21,10 @@ locals {
   write_to_dynamo_log_group_name        = "/aws/lambda/${var.write_to_dynamo_lambda_function_name}"
   write_to_dynamo_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
   write_to_dynamo_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.write_to_dynamo_log_group_name}:*"
+
+  compare_faces_log_group_name        = "/aws/lambda/${var.compare_faces_lambda_function_name}"
+  compare_faces_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
+  compare_faces_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.compare_faces_log_group_name}:*"
 }
 
 #DOCUMENT LAMBDA ROLE -------------------------------------------------------
@@ -41,7 +45,7 @@ resource "aws_iam_role" "document_lambda_role" { #the identity (Lambda) itself, 
     ]
   })
 }
-#INLINE S3 & DYNAMODB & SQS QUEUE POLICY
+#INLINE S3 & DYNAMODB & SNS & SQS QUEUE POLICY
 resource "aws_iam_role_policy" "document_lambda_policy" { # what the identity is allowed to do
   role = aws_iam_role.document_lambda_role.id
   name = var.document_lambda_policy_name
@@ -488,5 +492,105 @@ resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_writeToDyn
 resource "aws_cloudwatch_log_group" "write_to_dynamo_lambda_logs" {
   name              = local.write_to_dynamo_log_group_name
   retention_in_days = 14
+}
+#------------------------------------------------------------------------------
+
+
+#COMPARE FACES LAMBDA ROLE ------------------------------------------------------------
+resource "aws_iam_role" "compare_faces_lambda_role" {
+  name = var.compare_faces_lambda_function_role_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = "CompareFacesLambdaRole"
+        Principal = { #Trusted entity type (Lambda)
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+# MANAGED CLOUDWATCH POLICY
+resource "aws_iam_policy" "compare_faces_lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
+  name = var.compare_faces_lambda_cloudwatch_logs_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # Create Log Group
+        Sid    = "CloudWatchLogGroupCreation"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+        ]
+        Resource = local.compare_faces_logs_group_create_arn
+      },
+      { # Resource is scoped to this Lambda's own log group
+        Sid    = "CloudWatchLogsStreamAndPut"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = local.compare_faces_log_stream_arn_prefix
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_compareFacesLambdaRole" {
+  policy_arn = aws_iam_policy.compare_faces_lambda_cloudwatch_logs_policy.arn
+  role       = aws_iam_role.compare_faces_lambda_role.name
+}
+resource "aws_cloudwatch_log_group" "compare_faces_lambda_logs" {
+  name              = local.compare_faces_log_group_name
+  retention_in_days = 14
+}
+#INLINE S3 & DYNAMODB & SNS
+resource "aws_iam_role_policy" "compare_faces_lambda_policy" { # what the identity is allowed to do
+  role = aws_iam_role.compare_faces_lambda_role.id
+  name = var.compare_faces_lambda_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # S3 Get, Put, and Delete objects from Lambda
+        Sid    = "S3AccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ],
+
+        Resource = "${var.document_s3_bucket_arn}/*"
+      },
+      { # Write and update items to the newly created DynamoDB table.
+        Sid    = "DynamoDBAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ],
+        Resource = var.dynamodb_metadata_table_arn
+      },
+      { # Publish to the newly created SNS Topic.
+        Sid    = "SNSTopicAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "sns:Publish",
+        ],
+        Resource = var.sns_topic_arn
+      }
+    ]
+  })
+}
+#MANAGED REKOGNITION POLICY
+resource "aws_iam_role_policy_attachment" "attach_rekognition_policy_to_compare_face_lambda" {
+  policy_arn = aws_iam_policy.rekognition_face_comparison_policy.arn
+  role       = aws_iam_role.compare_faces_lambda_role.name
 }
 #------------------------------------------------------------------------------

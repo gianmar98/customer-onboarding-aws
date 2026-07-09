@@ -70,7 +70,7 @@ module "document_lambda" {
   sqs_license_queue_name             = module.sqs.sqs_license_queue_name
   sqs_url                            = module.sqs.sqs_url
   #Validate Lambda
-  validate_lambda_function_name                 = var.validate_lambda_function_name
+  validate_lambda_function_name                 = "${var.validate_lambda_function_name}${local.env_suffix}"
   validate_lambda_role_name                     = var.validate_lambda_role_name
   validation_lambda_cloudwatch_logs_policy_name = var.validation_lambda_cloudwatch_logs_policy_name
   #Submit License Lambda
@@ -88,6 +88,12 @@ module "document_lambda" {
   write_to_dynamo_lambda_function_name               = "${var.write_to_dynamo_lambda_function_name}${local.env_suffix}"
   write_to_dynamo_lambda_function_role_name          = var.write_to_dynamo_lambda_function_role_name
   write_to_dynamo_lambda_cloudwatch_logs_policy_name = var.write_to_dynamo_lambda_cloudwatch_logs_policy_name
+
+  #Compare Faces Lambda
+  compare_faces_lambda_function_name               = "${var.compare_faces_lambda_function_name}${local.env_suffix}"
+  compare_faces_lambda_function_role_name          = var.compare_faces_lambda_function_role_name
+  compare_faces_lambda_cloudwatch_logs_policy_name = var.compare_faces_lambda_cloudwatch_logs_policy_name
+  compare_faces_lambda_policy_name                 = var.compare_faces_lambda_policy_name
 
   #External
   document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn
@@ -109,7 +115,7 @@ module "api_gateway" {
   validate_api_gw_name = var.validate_api_gw_name
 
   #External
-  validate_lambda_function_name = var.validate_lambda_function_name
+  validate_lambda_function_name = "${var.validate_lambda_function_name}${local.env_suffix}"
   validate_lambda_invoke_arn    = module.document_lambda.validation_lambda_invoke_arn
 }
 
