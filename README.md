@@ -29,6 +29,7 @@ All resources deploy to `us-east-1`.
 │   ├── modules/
 │   │   ├── s3/                # Document bucket + TLS-only policy
 │   │   │   ├── s3.tf
+│   │   │   ├── s3_policies.tf  # TLS-only bucket policy
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
