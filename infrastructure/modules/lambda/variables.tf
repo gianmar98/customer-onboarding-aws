@@ -26,7 +26,7 @@ variable "document_lambda_function_name" {
   description = "Name of the document Lambda function"
   type        = string
 }
-variable "document_lambda_function_timeout" {
+variable "lambda_functions_timeout" {
   description = "The max mount of time function should run for"
   type        = number
 }
@@ -118,6 +118,23 @@ variable "compare_faces_lambda_policy_name" {
   type        = string
 }
 
+#COMPARE DETAILS lambda function
+variable "compare_details_lambda_function_name" {
+  description = "This is the name of the lambda function to compare the details of the results. is the 4th function."
+  type        = string
+}
+variable "compare_details_lambda_function_role_name" {
+  description = "name of the role the lambda function that compares details of the comparisons. 4th lambda."
+  type        = string
+}
+variable "compare_details_lambda_cloudwatch_logs_policy_name" {
+  description = "name of the cloudwatch logs policy for the compare details lambda function"
+  type        = string
+}
+variable "compare_details_lambda_policy_name" {
+  description = "Name of the inline policy attached to the Lambda execution role"
+  type        = string
+}
 
 #  OUTPUTS TO USE --------------------------
 # S3
