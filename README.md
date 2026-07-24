@@ -4,14 +4,14 @@ AWS infrastructure for a serverless document-handling backend, provisioned entir
 
 ## Stack
 
-All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-prod`) at the env layer — see **Env-suffix naming** below.
+All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-prod`) at the env layer — see **Env-suffix naming** below. Each service below is provisioned by its own Terraform sub-module; see that module's `README.md` for resource-level detail, inputs/outputs, and gotchas.
 
-- **S3** — document storage bucket (TLS-only, public access blocked, AES256 SSE, `force_destroy = true`). Also creates an empty `zipped/` placeholder object so the Lambda's trigger prefix exists before the first upload.
-- **DynamoDB** — `CustomerMetadataTable` (provisioned capacity with optional autoscaling, partition key `APP_UUID`)
-- **Lambda** — `DocumentLambdaFunction` (Python 3.13, 20 s timeout) packaged from `modules/lambda/src/` via `archive_file`. Triggered by `s3:ObjectCreated:Put` events under the `zipped/` prefix of the document bucket. On invocation the handler: (1) downloads the zip, extracts into `/tmp/unzipped/`, re-uploads each file to the `unzipped/` prefix in S3; (2) parses `<app_uuid>_details.csv` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) calls Rekognition `compare_faces` passing selfie and license as S3 object references with `SimilarityThreshold=80`, sets `LICENSE_SELFIE_MATCH = True/False`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes to SNS if the face match failed; (6) calls Textract `analyze_id` to extract the license's identity fields; (7) exact-string-compares the CSV subset vs the Textract subset, writes `LICENSE_DETAILS_MATCH`, and publishes to SNS on mismatch; (8) sends the validation message `{"driver_license_id": <CSV DOCUMENT_NUMBER>, "validation_override": True, "uuid": <APP_UUID>}` to `LicenseQueue` via `sqs.send_message`, handing off to the submit-license Lambda. The handler **does not raise on a mismatch** — every check runs each invocation, the outcome is recorded via the two DynamoDB flags + SNS, and the SQS message is always sent. The DynamoDB table name is passed as the `TABLE` env variable, the SNS topic ARN as `TOPIC`, and the `LicenseQueue` URL as `SQS_URL` (all wired via Terraform env variables). Execution role uses an **inline** policy (S3 `Get`/`Put`/`Delete`, DynamoDB `PutItem`/`UpdateItem`, SNS `Publish`) plus three **customer-managed** policies: least-privilege CloudWatch Logs, `rekognition:CompareFaces`, and `textract:AnalyzeID`. Function owns its own `aws_cloudwatch_log_group` (`/aws/lambda/<function_name>`, 14-day retention) wired via `logging_config`. A second **validation Lambda** (`ValidateLicenseLambdaFunction`, Python 3.13, `validate_lambda.lambda_handler`) provides mock 3rd-party license validation behind the API Gateway, with its own role and CloudWatch Logs policy. A third **submit-license Lambda** (`SubmitLicenseLambdaFunction`, Python 3.13, `submit_license.lambda_handler`) is triggered by an `aws_lambda_event_source_mapping` polling `LicenseQueue` (`batch_size = 1`); its role carries a CloudWatch Logs policy and an SQS poll policy (`ReceiveMessage`/`DeleteMessage`/`GetQueueAttributes`) scoped to the queue. On invocation the handler: (1) parses the single SQS record's `body` JSON into `driver_license_id`, `validation_override`, and `uuid`; (2) POSTs that payload to the third-party validation endpoint (`VALIDATE_LICENSE_API_URL`) and waits for the response; (3) writes `LICENSE_VALIDATION` to DynamoDB via `update_item` for both `True` and `False` outcomes; (4) on `False`, also publishes a failure notification to SNS. The `TABLE` (DynamoDB table name) and `TOPIC` (SNS topic **ARN**) env vars are wired the same way as the document Lambda's. Three more Lambdas form a separate, second pipeline with no Terraform-managed trigger (invoked directly, e.g. by a Step Functions state machine not yet defined in this repo): `UnzipLambdaFunction` (`unzip_lambda.lambda_handler`) downloads+extracts the zip from `zipped/`, re-uploads to `unzipped/`, and returns the derived `app_uuid`; `WriteToDynamoLambdaFunction` (`write_to_dynamo_lambda.lambda_handler`) downloads `<app_uuid>_details.csv` from `unzipped/`, writes it to DynamoDB, and returns a `driver_license_id`/`validation_override`/`app_uuid` payload; `CompareFacesLambdaFunction` (`compare_faces_lambda.lambda_handler`) calls Rekognition `compare_faces` on the `unzipped/<app_uuid>_selfie.png` and `unzipped/<app_uuid>_license.png` objects, records `LICENSE_SELFIE_MATCH` in DynamoDB, publishes to SNS on a non-match, and **raises `ValueError` on a non-match** (unlike the monolithic document Lambda, which never raises) so a Step Functions `Catch` block can branch on it.
-- **SNS** — `ApplicationNotifications` topic with email subscription, KMS-encrypted
-- **API Gateway** — `ValidateLicenseApi`, an HTTP API exposing `POST /license` on the `$default` stage. An `AWS_PROXY` integration invokes `ValidateLicenseLambdaFunction`. Outputs the invoke URL as `license_validation_post_api_invoke_url`.
-- **SQS** — `LicenseQueue` (standard, 300 s visibility timeout) with a redrive policy to `LicenseDeadLetterQueue` after 5 failed receives; a redrive-allow policy scopes the DLQ to that one source queue. The queue ARN (`sqs_license_queue_arn`) is wired into the lambda module to trigger the submit-license Lambda; the queue URL (`sqs_url`) is wired in as the document Lambda's `SQS_URL` env var — the document Lambda writes the validation message to the queue, closing the loop.
+- **S3** (`infrastructure/modules/s3/`) — document storage bucket, TLS-only.
+- **DynamoDB** (`infrastructure/modules/dynamodb/`) — `CustomerMetadataTable`, keyed by `APP_UUID`.
+- **Lambda** (`infrastructure/modules/lambda/`) — six functions forming two pipelines: a monolithic document-processing Lambda (S3-triggered) plus a validation/submit-license pair (API Gateway + SQS), and a separate unzip → write-to-dynamo → compare-faces pipeline invoked externally (e.g. by Step Functions, not yet built). Runs face-match (Rekognition) and ID-field extraction (Textract) checks, records results in DynamoDB, and notifies via SNS.
+- **SNS** (`infrastructure/modules/sns/`) — `ApplicationNotifications` topic with email subscription.
+- **API Gateway** (`infrastructure/modules/apiGateway/`) — `ValidateLicenseApi`, HTTP API exposing `POST /license` (internal mock validator, not a browser-facing API).
+- **SQS** (`infrastructure/modules/sqs/`) — `LicenseQueue` + dead-letter queue, connecting the document Lambda to the submit-license Lambda.
 
 All resources deploy to `us-east-1`.
 
@@ -59,7 +59,8 @@ All resources deploy to `us-east-1`.
 │   │   ├── apiGateway/        # ValidateLicenseApi HTTP API (POST /license) -> validation Lambda
 │   │   │   ├── apigw.tf
 │   │   │   ├── variables.tf
-│   │   │   └── outputs.tf
+│   │   │   ├── outputs.tf
+│   │   │   └── README.md
 │   │   └── sqs/               # LicenseQueue + LicenseDeadLetterQueue (DLQ)
 │   │       ├── sqs.tf
 │   │       ├── variables.tf
@@ -72,29 +73,14 @@ All resources deploy to `us-east-1`.
 │           ├── variables.tf     # pass-through declarations
 │           ├── outputs.tf       # forwards each sub-module's outputs
 │           └── terraform.tfvars # gitignored
-└── frontend/                # (placeholder — not yet implemented)
+└── frontend/                # Next.js frontend — see frontend/CLAUDE.md and frontend_tutorial.md
 ```
 
 The structure is **per-resource sub-modules composed by the env**. Only `dev` exists today; a `prod` env can be added later by copying `dev/`, swapping the backend `key`, and setting `project_environment = "prod"` in the new `terraform.tfvars` — the base names stay identical and the env-suffix pattern (see below) makes every resource land as `*-prod` automatically.
 
 ## Env-suffix naming
 
-Every resource name passed into a module is stamped with `-${var.project_environment}` from a `locals` block in the env's `main.tf`:
-
-```hcl
-locals {
-  env_suffix = "-${var.project_environment}"
-}
-
-module "document_lambda" {
-  document_lambda_function_name = "${var.document_lambda_function_name}${local.env_suffix}"
-  # ...same pattern for every *_name input
-}
-```
-
-This keeps dev and prod able to coexist in the same AWS account without colliding on globally-unique names (S3 buckets, IAM roles, IAM managed policies, Lambda functions, DynamoDB tables, SNS topics). `terraform.tfvars` holds **base** names; the env appends the suffix. Modules don't know about envs and don't take a `project_env` input — they receive a fully-formed name string.
-
-IAM `Sid` values inside policy documents are kept as static literals (`DocumentLambdaRole`, `S3AccessPolicy`, etc.) — AWS requires Sids to be alphanumeric, so they can't carry the `-dev` hyphen. Sids are document-local, so reusing the same label across envs is harmless.
+Every resource name is stamped with `-${var.project_environment}` (e.g. `-dev`, `-prod`) at the env layer, so multiple envs can coexist in one AWS account without colliding on globally-unique names. See `CLAUDE.md`'s "Env-suffix naming pattern" for the mechanism and exceptions.
 
 ## Common Commands
 
@@ -133,16 +119,7 @@ To add a brand-new sub-module: create `infrastructure/modules/<name>/{main.tf,va
 
 ## Cross-module values
 
-Sub-modules are isolated scopes — `modules/lambda/` cannot directly reference `module.document_s3_bucket` from `modules/s3/`. Shared values must flow through the env:
-
-```
-modules/s3/outputs.tf       → exposes bucket ARN as `document_bucket_arn`
-envs/dev/main.tf            → reads it, passes into the lambda module call
-modules/lambda/variables.tf → receives it as var.document_s3_bucket_arn
-modules/lambda/*.tf         → uses var.document_s3_bucket_arn
-```
-
-This is how the Lambda IAM policy gets the bucket ARN today, and the same pattern flows `document_bucket_name` from `modules/s3/outputs.tf` into the lambda module for the `aws_s3_bucket_notification`. The DynamoDB table **name** and **ARN** flow the same way — name becomes the `TABLE` runtime env variable (on the document, write-to-dynamo, and compare-faces Lambdas); ARN scopes the inline IAM policy. The SNS topic **ARN** and **name** also flow from `modules/sns/outputs.tf` into the lambda module — ARN scopes the inline IAM policy and should be the `TOPIC` runtime env variable (on the document, submit-license, and compare-faces Lambdas). The env's `main.tf` also declares `data "aws_caller_identity"` and `data "aws_region"` and passes `current_account_id` / `current_region` into the lambda module so its CloudWatch IAM policy can build region/account-scoped ARNs without hardcoding.
+Sub-modules are isolated scopes — shared values (bucket ARN, table ARN, topic ARN, etc.) flow through the env's `main.tf`, which reads each module's `outputs.tf` and passes values into the next module's inputs. See `modules/lambda/README.md`'s "Cross-module dependencies" for the full wiring diagram (it's the biggest consumer of cross-module values).
 
 ## Default Tags
 
@@ -155,16 +132,4 @@ Every resource inherits these tags via the provider's `default_tags` block:
 | `Owner`      | `var.project_owner`         |
 | `ManagedBy`  | `Terraform`                 |
 
-## Pinned Module Versions
-
-| Module                                     | Version    |
-|--------------------------------------------|------------|
-| `terraform-aws-modules/s3-bucket/aws`      | `5.12.0`   |
-| `terraform-aws-modules/dynamodb-table/aws` | `5.5.0`    |
-| `terraform-aws-modules/sns/aws`            | `7.1.0`    |
-| `hashicorp/aws` provider                   | `~> 6.4` (locked at 6.52.0) |
-
-## Notes
-
-- Toggling `customer_metadata_table_autoscaling_enabled` recreates the DynamoDB table — use `terraform state mv` to preserve data (see `modules/dynamodb/README.md`).
-- The SNS email subscription requires manual confirmation from the inbox before notifications will deliver.
+Pinned module versions and Terraform-specific notes/gotchas live in `CLAUDE.md` and each module's own `README.md`.
