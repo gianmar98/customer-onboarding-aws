@@ -5,6 +5,8 @@ import {useEffect, useRef, useState} from "react";
 import {LICENSE_FIELDS, type LicenseDetails, type StatusResponse} from "@/lib/types";
 import { requestUploadUrl, uploadZip, fetchStatus} from "@/lib/api";
 import {buildSubmissionZip} from "@/lib/zip";
+import {DobPicker} from "@/components/DobPicker";
+import {devNull} from "node:os";
 
 // import Props {
 //     onSignOut: () => void;
@@ -15,7 +17,8 @@ const MOCK: LicenseDetails = {
   DOCUMENT_NUMBER: "S123-4567-8901",
   FIRST_NAME: "Giancarlo",
   LAST_NAME: "Martinez",
-  DATE_OF_BIRTH: "2025-15-21",
+  // DATE_OF_BIRTH: "2025-15-21",
+  DATE_OF_BIRTH: "",
   ADDRESS: "742 Evergreen Terrace",
   STATE_IN_ADDRESS: "CA",
   CITY_IN_ADDRESS: "Springfield",
@@ -105,7 +108,7 @@ export default function SubmitPanel(){
       <div className={"rounded-xl border border-slate-200 bg-white p-6 shadow-sm"}>
         {/*Detail fields (filled with mock data)*/}
         <div className={"grid grid-cols-1 gap-3 sm:grid-cols-2"}>
-          {LICENSE_FIELDS.map((field) => (
+          {LICENSE_FIELDS.filter((field) => field !== "DATE_OF_BIRTH").map((field) => (
             <label key={field} className={"text-sm"}>
               <span className={"mb-1 block font-medium text-slate-600"}>{field.replaceAll("_"," ").toLowerCase()}</span>
               <input
@@ -115,6 +118,15 @@ export default function SubmitPanel(){
               />
             </label>
         ))}
+
+          <label className={"text-sm"}>
+            <span className={"mb-1 block font-medium text-slate-600"}>date of birth</span>
+            <DobPicker
+              value={details.DATE_OF_BIRTH}
+              onChange={(v) => setDetails({...details, DATE_OF_BIRTH: v})}
+            />
+          </label>
+
         </div>
 
         {/*Image Pickers*/}
@@ -161,6 +173,11 @@ export default function SubmitPanel(){
           </div>
 
       )}
+
+      {/*<DobPicker*/}
+      {/*  value={details.DATE_OF_BIRTH}*/}
+      {/*  onChange={(v) => setDetails({...details, DATE_OF_BIRTH: v})}*/}
+      {/*/>*/}
     </div>
 
   </>);
