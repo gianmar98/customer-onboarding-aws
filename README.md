@@ -8,7 +8,7 @@ All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-pr
 
 - **S3** (`infrastructure/modules/s3/`) — document storage bucket, TLS-only.
 - **DynamoDB** (`infrastructure/modules/dynamodb/`) — `CustomerMetadataTable`, keyed by `APP_UUID`.
-- **Lambda** (`infrastructure/modules/lambda/`) — six functions forming two pipelines: a monolithic document-processing Lambda (S3-triggered) plus a validation/submit-license pair (API Gateway + SQS), and a separate unzip → write-to-dynamo → compare-faces pipeline invoked externally (e.g. by Step Functions, not yet built). Runs face-match (Rekognition) and ID-field extraction (Textract) checks, records results in DynamoDB, and notifies via SNS.
+- **Lambda** (`infrastructure/modules/lambda/`) — seven functions forming two pipelines: a monolithic document-processing Lambda (S3-triggered) plus a validation/submit-license pair (API Gateway + SQS), and a separate unzip → write-to-dynamo → compare-faces → compare-details pipeline invoked externally (e.g. by Step Functions, not yet built). Runs face-match (Rekognition) and ID-field extraction (Textract) checks, records results in DynamoDB, and notifies via SNS.
 - **SNS** (`infrastructure/modules/sns/`) — `ApplicationNotifications` topic with email subscription.
 - **API Gateway** (`infrastructure/modules/apiGateway/`) — `ValidateLicenseApi`, HTTP API exposing `POST /license` (internal mock validator, not a browser-facing API).
 - **SQS** (`infrastructure/modules/sqs/`) — `LicenseQueue` + dead-letter queue, connecting the document Lambda to the submit-license Lambda.
@@ -38,7 +38,7 @@ All resources deploy to `us-east-1`.
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
-│   │   ├── lambda/            # IAM (roles + inline + managed), 6 Lambda functions, log groups, S3 + SQS triggers
+│   │   ├── lambda/            # IAM (roles + inline + managed), 7 Lambda functions, log groups, S3 + SQS triggers
 │   │   │   ├── lambda_policies.tf              # required_providers, roles, inline + managed policies, attachments, log groups
 │   │   │   ├── document_lambda_function.tf     # document function, archive_file, S3 notification, invoke permission
 │   │   │   ├── validate_lambda_function.tf     # validation function + archive_file
@@ -46,7 +46,8 @@ All resources deploy to `us-east-1`.
 │   │   │   ├── unzip_lambda_function.tf        # unzip function + archive_file (no trigger — invoked directly)
 │   │   │   ├── write_to_dynamo_lambda_function.tf # write-to-dynamo function + archive_file (no trigger — invoked directly)
 │   │   │   ├── compare_faces_lambda_function.tf   # compare-faces function + archive_file (no trigger — invoked directly)
-│   │   │   ├── src/                            # Python handlers (s3_upload.py, validate_lambda.py, submit_license.py, unzip_lambda.py, write_to_dynamo_lambda.py, compare_faces_lambda.py)
+│   │   │   ├── compare_details_lambda_function.tf # compare-details function + archive_file (no trigger — invoked directly)
+│   │   │   ├── src/                            # Python handlers (s3_upload.py, validate_lambda.py, submit_license.py, unzip_lambda.py, write_to_dynamo_lambda.py, compare_faces_lambda.py, compare_details_lambda.py)
 │   │   │   ├── build/                      # archive_file zip output (gitignored)
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf

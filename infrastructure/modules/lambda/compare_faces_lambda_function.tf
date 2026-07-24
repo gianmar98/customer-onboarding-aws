@@ -19,7 +19,7 @@ resource "aws_lambda_function" "compare_faces_lambda_function" {
 
   runtime = "python3.13"
 
-  # timeout = var.document_lambda_function_timeout
+  timeout = var.lambda_functions_timeout
 
   logging_config {
     log_group  = aws_cloudwatch_log_group.compare_faces_lambda_logs.name
@@ -29,7 +29,7 @@ resource "aws_lambda_function" "compare_faces_lambda_function" {
   environment {
     variables = {
       TABLE = var.dynamodb_document_table_name
-      TOPIC   = var.sns_topic_arn
+      TOPIC = var.sns_topic_arn
     }
   }
 }

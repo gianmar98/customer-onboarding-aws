@@ -20,7 +20,7 @@ resource "aws_lambda_function" "write_to_dynamo_lambda_function" {
 
   runtime = "python3.13"
 
-  # timeout = var.document_lambda_function_timeout
+  timeout = var.lambda_functions_timeout
 
   logging_config {
     log_group  = aws_cloudwatch_log_group.write_to_dynamo_lambda_logs.name

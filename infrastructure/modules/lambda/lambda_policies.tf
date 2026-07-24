@@ -25,6 +25,10 @@ locals {
   compare_faces_log_group_name        = "/aws/lambda/${var.compare_faces_lambda_function_name}"
   compare_faces_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
   compare_faces_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.compare_faces_log_group_name}:*"
+
+  compare_details_log_group_name        = "/aws/lambda/${var.compare_details_lambda_function_name}"
+  compare_details_logs_group_create_arn = "arn:aws:logs:${var.current_region}:${var.current_account_id}:*"
+  compare_details_log_stream_arn_prefix = "arn:aws:logs:${var.current_region}:${var.current_account_id}:log-group:${local.compare_details_log_group_name}:*"
 }
 
 #DOCUMENT LAMBDA ROLE -------------------------------------------------------
@@ -592,5 +596,102 @@ resource "aws_iam_role_policy" "compare_faces_lambda_policy" { # what the identi
 resource "aws_iam_role_policy_attachment" "attach_rekognition_policy_to_compare_face_lambda" {
   policy_arn = aws_iam_policy.rekognition_face_comparison_policy.arn
   role       = aws_iam_role.compare_faces_lambda_role.name
+}
+#------------------------------------------------------------------------------
+
+#COMPARE DETAILS lambda function ------------------------------------------------------------
+resource "aws_iam_role" "compare_details_lambda_role" {
+  name = var.compare_details_lambda_function_role_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = "CompareDetailsLambdaRole"
+        Principal = { #Trusted entity type (Lambda)
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+# MANAGED CLOUDWATCH POLICY
+resource "aws_iam_policy" "compare_details_lambda_cloudwatch_logs_policy" { # what the identity is allowed to do
+  name = var.compare_details_lambda_cloudwatch_logs_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # Create Log Group
+        Sid    = "CloudWatchLogGroupCreation"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+        ]
+        Resource = local.compare_details_logs_group_create_arn
+      },
+
+      { # Resource is scoped to this Lambda's own log group
+        Sid    = "CloudWatchLogsStreamAndPut"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = local.compare_details_log_stream_arn_prefix
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_CloudWatchPolicy_to_compareDetailsLambdaRole" {
+  policy_arn = aws_iam_policy.compare_details_lambda_cloudwatch_logs_policy.arn
+  role       = aws_iam_role.compare_details_lambda_role.name
+}
+resource "aws_cloudwatch_log_group" "compare_details_lambda_logs" {
+  name              = local.compare_details_log_group_name
+  retention_in_days = 14
+}
+#INLINE S3 & DYNAMODB & SNS
+resource "aws_iam_role_policy" "compare_details_lambda_policy" { # what the identity is allowed to do
+  role = aws_iam_role.compare_details_lambda_role.id
+  name = var.compare_details_lambda_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # Read the license image and details CSV from S3.
+        Sid    = "S3AccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject"
+        ],
+
+        Resource = "${var.document_s3_bucket_arn}/*"
+      },
+      { # Update the LICENSE_DETAILS_MATCH attribute on the DynamoDB item.
+        Sid    = "DynamoDBAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:UpdateItem"
+        ],
+        Resource = var.dynamodb_metadata_table_arn
+      },
+      { # Publish to the newly created SNS Topic.
+        Sid    = "SNSTopicAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "sns:Publish",
+        ],
+        Resource = var.sns_topic_arn
+      }
+    ]
+  })
+}
+# MANAGED TEXTRACT POLICY
+resource "aws_iam_role_policy_attachment" "attach_textract_to_compare_details_lambda" {
+  policy_arn = aws_iam_policy.textract_policy.arn
+  role       = aws_iam_role.compare_details_lambda_role.name
 }
 #------------------------------------------------------------------------------

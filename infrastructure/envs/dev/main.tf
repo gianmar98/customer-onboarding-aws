@@ -66,7 +66,7 @@ module "document_lambda" {
   document_lambda_role_name          = "${var.document_lambda_role_name}${local.env_suffix}"
   lambda_cloudwatch_logs_policy_name = "${var.lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
   document_lambda_function_name      = "${var.document_lambda_function_name}${local.env_suffix}"
-  document_lambda_function_timeout   = var.document_lambda_function_timeout
+  lambda_functions_timeout   = var.lambda_functions_timeout
   sqs_license_queue_name             = module.sqs.sqs_license_queue_name
   sqs_url                            = module.sqs.sqs_url
   #Validate Lambda
@@ -94,6 +94,12 @@ module "document_lambda" {
   compare_faces_lambda_function_role_name          = var.compare_faces_lambda_function_role_name
   compare_faces_lambda_cloudwatch_logs_policy_name = var.compare_faces_lambda_cloudwatch_logs_policy_name
   compare_faces_lambda_policy_name                 = var.compare_faces_lambda_policy_name
+
+  #Compare Details Lambda
+  compare_details_lambda_function_name               = "${var.compare_details_lambda_function_name}${local.env_suffix}"
+  compare_details_lambda_function_role_name          = var.compare_details_lambda_function_role_name
+  compare_details_lambda_cloudwatch_logs_policy_name = var.compare_details_lambda_cloudwatch_logs_policy_name
+  compare_details_lambda_policy_name                 = var.compare_details_lambda_policy_name
 
   #External
   document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn
