@@ -6,7 +6,7 @@ import {LICENSE_FIELDS, type LicenseDetails, type StatusResponse} from "@/lib/ty
 import { requestUploadUrl, uploadZip, fetchStatus} from "@/lib/api";
 import {buildSubmissionZip} from "@/lib/zip";
 import {DobPicker} from "@/components/DobPicker";
-import {devNull} from "node:os";
+import MrzStrip from "@/components/MrzStrip";
 
 // import Props {
 //     onSignOut: () => void;
@@ -14,9 +14,9 @@ import {devNull} from "node:os";
 
 //Realistic Mock data
 const MOCK: LicenseDetails = {
-  DOCUMENT_NUMBER: "S123-4567-8901",
   FIRST_NAME: "Giancarlo",
   LAST_NAME: "Martinez",
+  DOCUMENT_NUMBER: "S123-4567-8901",
   // DATE_OF_BIRTH: "2025-15-21",
   DATE_OF_BIRTH: "",
   ADDRESS: "742 Evergreen Terrace",
@@ -30,6 +30,7 @@ export default function SubmitPanel(){
   const [license, setLicense] = useState<File | null>(null);
   const [selfie, setSelfie] = useState<File | null>(null);
   const [uuid, setUuid] = useState<string | null>(null);
+  // const [uuid, setUuid] = useState<string | null>("test-uuid-123");
   const [status, setStatus] = useState<StatusResponse | null>(null);
   // const [status, setStatus] = useState<StatusResponse | null>({status: "done", LICENSE_SELFIE_MATCH: true, LICENSE_VALIDATION:false, LICENSE_DETAILS_MATCH:null});
   const [error, setError] = useState<string |null>(null);
@@ -105,22 +106,22 @@ export default function SubmitPanel(){
 
       </header>
 
-      <div className={"rounded-xl border border-slate-200 bg-white p-6 shadow-sm"}>
+      <div className={"rounded-xl border border-line bg-paper p-6 shadow-sm"}>
         {/*Detail fields (filled with mock data)*/}
         <div className={"grid grid-cols-1 gap-3 sm:grid-cols-2"}>
           {LICENSE_FIELDS.filter((field) => field !== "DATE_OF_BIRTH").map((field) => (
-            <label key={field} className={"text-sm"}>
-              <span className={"mb-1 block font-medium text-slate-600"}>{field.replaceAll("_"," ").toLowerCase()}</span>
+            <label key={field} className={"block"}>
+              <span className={"mb-1 block text-sm font-medium text-ink/70"}>{field.replaceAll("_"," ").toLowerCase()}</span>
               <input
                 value={details[field]}
                 onChange={(e) => setDetails({...details, [field]:e.target.value})}
-                className={"w-full rounded-md border border-slate-300 px-3 py-2 focus:border-blue-500  focus:outline-none"}
+                className={"w-full rounded-md border border-line px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-thread focus-visible:ring-offset-1"}
               />
             </label>
         ))}
 
-          <label className={"text-sm"}>
-            <span className={"mb-1 block font-medium text-slate-600"}>date of birth</span>
+          <label className={"block"}>
+            <span className={"mb-1 block text-sm font-medium text-ink/70"}>date of birth</span>
             <DobPicker
               value={details.DATE_OF_BIRTH}
               onChange={(v) => setDetails({...details, DATE_OF_BIRTH: v})}
@@ -144,7 +145,7 @@ export default function SubmitPanel(){
         <button
           onClick={handleSubmit}
           disabled={busy}
-          className={"mt-5 w-full bg-blue-600 rounded-md px-4 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"}
+          className={"mt-5 w-full bg-thread-strong rounded-md px-4 py-2.5 font-medium text-white hover:bg-ink disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-thread focus-visible:ring-offset-1"}
         >
           {busy ? "Uploading...": `Submit for verification`}
         </button>
@@ -152,26 +153,24 @@ export default function SubmitPanel(){
 
       {/*Results*/}
       {uuid && (
-       //{(
-          <div className={"mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"}>
+          <div className={"mt-6 rounded-xl border border-line bg-paper p-6 shadow-sm"}>
             <div className={"mb-3 flex items-center justify-between"}>
               <h2 className={"text-lg font-semibold"}>Result</h2>
-              <span className={"font-mono text-xs text-slate-400"}>id: {uuid}</span>
+              <span className={"font-mono text-xs text-ink/40"}>id: {uuid}</span>
             </div>
 
             {!status || status.status == "pending" ? (
-                <p className={"animate-pulse text-slate-500"}> Processing... Checking every 3s.</p>
+                <p className={"animate-pulse text-ink/50"} role="alert"> Processing... Checking every 3s.</p>
             ):
                 (
                     <div className={"space-y-2"}>
                       <Flag label={"Face match (selfie vs license)"} value={status.LICENSE_SELFIE_MATCH}></Flag>
                       <Flag label={"Details match (form vs license)"} value={status.LICENSE_DETAILS_MATCH}></Flag>
                       <Flag label={"License validated"} value={status.LICENSE_VALIDATION}></Flag>
+                      <MrzStrip id={uuid} name={`${details.FIRST_NAME} ${details.LAST_NAME}`} />
                     </div>
-
                 )}
           </div>
-
       )}
 
       {/*<DobPicker*/}
@@ -185,14 +184,13 @@ export default function SubmitPanel(){
 
 function FilePick({label, file, onPick}: {label:string; file: File | null; onPick: (f:File) => void;}){
     return(
-        <label className={"flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-slate-300 p-4 text-center hover:border-blue-400"}>
-          <span className={"text-sm font-medium text-slate-600"}>{label}</span>
-          {/*<span className={"text-sm font-medium text-slate-600"}>{label}</span>*/}
-          <span className={"mt-1 mb-1 text-xs text-slate-400"}>{file ? file.name : `Click to choose`}</span>
+        <label className={"flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-line p-4 text-center hover:border-thread focus-within:ring-2 focus-within:ring-thread focus-within:ring-offset-1"}>
+          <span className={"text-sm font-medium text-ink/70"}>{label}</span>
+          <span className={"mt-1 mb-1 text-xs text-ink/40"}>{file ? file.name : `Click to choose`}</span>
           <input
             type={"file"}
             accept={"image/*"}
-            className={"hidden"}
+            className={"sr-only"}
             onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])}
           />
         </label>
@@ -211,14 +209,14 @@ function Flag({label, value}:{label:string, value?: boolean | string | null}){ /
 
 
   const color = !hasResult ?
-      "bg-slate-100 text-slate-500" //if no result
+      "bg-ink/5 text-ink/40" //if no result
       : passed ? // if there is result
-       "bg-green-100 text-green-700" //and it passed = true => green
-      :  "bg-red-100 text-red-700"; // if there is a result and it did not pass, result existed but failed -> red
+       "bg-pass/10 text-pass" //and it passed = true => green
+      :  "bg-fail/10 text-fail"; // if there is a result and it did not pass, result existed but failed -> red
   const text = !hasResult ? "pending": passed? "PASS":"FAIL"; //if there is no resultColor = pending, else if passed is Pass and if not fail
   return(
     <div className="flex items-center justify-between">
-      <span className="text-sm text-slate-700">{label}</span>
+      <span className="text-sm text-ink/80">{label}</span>
       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${color}`}>{text}</span>
     </div>
   );

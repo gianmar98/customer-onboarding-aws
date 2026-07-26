@@ -11,7 +11,7 @@ export function DobPicker({value,onChange}:{value:string, onChange: (v:string)=>
     const [open, setOpen] = useState(false);
   const date = value ? parse(value, "yyyy-MM-dd", new Date()) : undefined;
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger render={<Button variant={"outline"} data-empty={!date} className="w-[212px] justify-between text-left font-normal data-[empty=true]:text-muted-foreground">
           {date ? format(date, "PPP") : <span>Pick a date</span>}
           <ChevronDownIcon data-icon="inline-end" />

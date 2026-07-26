@@ -66,7 +66,7 @@ module "document_lambda" {
   document_lambda_role_name          = "${var.document_lambda_role_name}${local.env_suffix}"
   lambda_cloudwatch_logs_policy_name = "${var.lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
   document_lambda_function_name      = "${var.document_lambda_function_name}${local.env_suffix}"
-  lambda_functions_timeout   = var.lambda_functions_timeout
+  lambda_functions_timeout           = var.lambda_functions_timeout
   sqs_license_queue_name             = module.sqs.sqs_license_queue_name
   sqs_url                            = module.sqs.sqs_url
   #Validate Lambda
