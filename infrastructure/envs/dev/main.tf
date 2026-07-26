@@ -130,14 +130,28 @@ module "sqs" {
 }
 
 module "step_function" {
-  source                               = "../../modules/stepFunction"
+  source             = "../../modules/stepFunction"
+  current_account_id = data.aws_caller_identity.currentUser.account_id
+  current_region     = data.aws_region.currentUser.region
+
+
   document_state_machine_name          = "${var.document_state_machine_name}${local.env_suffix}"
   document_state_machine_iam_role_name = var.document_state_machine_iam_role_name
 
-  unzip_lambda_function_arn           = module.document_lambda.unzip_lambda_function_arn
-  write_to_dynamo_lambda_arn          = module.document_lambda.write_to_dynamo_lambda_arn
-  compare_faces_lambda_function_arn   = module.document_lambda.compare_faces_lambda_function_arn
-  compare_details_lambda_function_arn = module.document_lambda.compare_details_lambda_function_arn
-  validate_sqs_queue_url              = module.sqs.sqs_url
+  unzip_lambda_function_arn            = module.document_lambda.unzip_lambda_function_arn
+  unzip_lambda_function_name           = module.document_lambda.unzip_lambda_function_name
+  write_to_dynamo_lambda_arn           = module.document_lambda.write_to_dynamo_lambda_arn
+  write_to_dynamo_lambda_name          = module.document_lambda.write_to_dynamo_lambda_name
+  compare_faces_lambda_function_arn    = module.document_lambda.compare_faces_lambda_function_arn
+  compare_faces_lambda_function_name   = module.document_lambda.compare_faces_lambda_function_name
+  compare_details_lambda_function_arn  = module.document_lambda.compare_details_lambda_function_arn
+  compare_details_lambda_function_name = module.document_lambda.compare_details_lambda_function_name
+
+  validate_sqs_queue_url = module.sqs.sqs_url
+  validate_sqs_queue_arn = module.sqs.sqs_license_queue_arn
+
+  document_s3_bucket_arn  = module.document_s3_bucket.document_bucket_arn
+  document_s3_bucket_name = module.document_s3_bucket.document_bucket_name
+  document_s3_bucket_id   = module.document_s3_bucket.document_bucket_id
 
 }

@@ -35,19 +35,19 @@ resource "aws_lambda_function" "document_lambda_function" {
 }
 
 
-resource "aws_s3_bucket_notification" "document_bucket_notification" {
-  bucket = var.document_s3_bucket_name
 
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.document_lambda_function.arn
-    events              = ["s3:ObjectCreated:Put"]
-    filter_prefix       = "zipped/"
-  }
-
-  depends_on = [aws_lambda_permission.allow_s3_invoke]
-}
-
-
+#MAKE S3 'zipped/' prefix UPLOADS TRIGGER LAMBDA
+# resource "aws_s3_bucket_notification" "document_bucket_notification" {
+#   bucket = var.document_s3_bucket_name
+#
+#   lambda_function {
+#     lambda_function_arn = aws_lambda_function.document_lambda_function.arn
+#     events              = ["s3:ObjectCreated:Put"]
+#     filter_prefix       = "zipped/"
+#   }
+#
+#   depends_on = [aws_lambda_permission.allow_s3_invoke]
+# }
 resource "aws_lambda_permission" "allow_s3_invoke" {
   statement_id  = "AllowS3Invoke"
   action        = "lambda:InvokeFunction"
