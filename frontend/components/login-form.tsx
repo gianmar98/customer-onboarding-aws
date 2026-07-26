@@ -115,47 +115,43 @@ export function LoginForm({
                 }}>
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
-                <h1 className="text-2xl font-bold">Welcome back</h1>
-                <p className="text-balance text-muted-foreground">
+                <h1 className="text-2xl font-bold text-ink">Welcome back</h1>
+                <p className="text-balance text-ink/60">
                   Login to your Giancarlo License Simulation Inc account
                 </p>
               </div>
               <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <FieldLabel htmlFor="email" className="text-ink/70">Email</FieldLabel>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                   required
-                  // TODO: value={email} onChange={(e) => setEmail(e.target.value)}
-                  //   Uncontrolled right now — nothing typed here is captured in state,
-                  //   so handleLogin has no way to read what the user entered.
                 />
               </Field>
               <Field>
                 <div className="flex items-center">
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <FieldLabel htmlFor="password" className="text-ink/70">Password</FieldLabel>
                   <a
                     href="#"
-                    className="ml-auto text-sm underline-offset-2 hover:underline"
+                    className="ml-auto text-sm text-ink/60 underline underline-offset-2 hover:text-ink"
                   >
                     Forgot your password?
                   </a>
-                  {/* ^ deliberately left as a dead link — no Cognito reset-password
-                      flow is in scope yet (tutorial 3.7 "deliberate deviations"). */}
                 </div>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e)=> setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
-                  // TODO: value={password} onChange={(e) => setPassword(e.target.value)}
                 />
               </Field>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-fail" role="alert">{error}</p>}
               <Field>
                 <Button type="submit" disabled={busy}>{busy ? "Logging in..." : "Login"}</Button>
               </Field>
@@ -195,12 +191,8 @@ export function LoginForm({
                   <span className="sr-only">Login with Meta</span>
                 </Button>
               </Field>
-              <FieldDescription className="text-center">
-                {/* TODO: swap <a href="#"> for a button that calls setMode("signup"),
-                    then render a second form block below (or a switch on `mode`)
-                    with name/email/password fields wired to handleSignUp. Not
-                    present in this file yet — see tutorial 3.7 for the shape. */}
-                Don&apos;t have an account? <a href="#">Sign up</a>
+              <FieldDescription className="text-center text-ink/60">
+                Don&apos;t have an account? <a href="#" className="underline hover:text-ink">Sign up</a>
               </FieldDescription>
             </FieldGroup>
           </form>
@@ -213,9 +205,9 @@ export function LoginForm({
           </div>
         </CardContent>
       </Card>
-      <FieldDescription className="px-6 text-center">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-        and <a href="#">Privacy Policy</a>.
+      <FieldDescription className="px-6 text-center text-ink/60">
+        By clicking continue, you agree to our <a href="#" className="underline hover:text-ink">Terms of Service</a>{" "}
+        and <a href="#" className="underline hover:text-ink">Privacy Policy</a>.
       </FieldDescription>
     </div>
   )
