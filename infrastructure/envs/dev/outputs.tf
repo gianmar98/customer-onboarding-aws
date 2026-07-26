@@ -45,3 +45,8 @@ output "license_validation_post_api_invoke_url" {
   description = "Invoke URL for POST /license"
   value       = module.api_gateway.license_validation_invoke_url
 }
+
+output "validate_sqs_queue_arn" {
+  description = "ARN of the SQS license validate"
+  value       = module.sqs.sqs_license_queue_arn
+}

@@ -79,22 +79,20 @@ module "document_lambda" {
   submit_license_lambda_cloudwatch_logs_policy_name = "${var.submit_license_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
   submit_license_lambda_policy_name                 = var.submit_license_lambda_policy_name
 
+  # ------- STEP FUNCTIONS LAMBDAS -------
   #Unzip License lambda
   unzip_lambda_function_name                       = "${var.unzip_lambda_function_name}${local.env_suffix}"
   unzip_lambda_function_role_name                  = var.unzip_lambda_function_role_name
   unzip_license_lambda_cloudwatch_logs_policy_name = var.unzip_license_lambda_cloudwatch_logs_policy_name
-
   #Write to Dynamo Lambda
   write_to_dynamo_lambda_function_name               = "${var.write_to_dynamo_lambda_function_name}${local.env_suffix}"
   write_to_dynamo_lambda_function_role_name          = var.write_to_dynamo_lambda_function_role_name
   write_to_dynamo_lambda_cloudwatch_logs_policy_name = var.write_to_dynamo_lambda_cloudwatch_logs_policy_name
-
   #Compare Faces Lambda
   compare_faces_lambda_function_name               = "${var.compare_faces_lambda_function_name}${local.env_suffix}"
   compare_faces_lambda_function_role_name          = var.compare_faces_lambda_function_role_name
   compare_faces_lambda_cloudwatch_logs_policy_name = var.compare_faces_lambda_cloudwatch_logs_policy_name
   compare_faces_lambda_policy_name                 = var.compare_faces_lambda_policy_name
-
   #Compare Details Lambda
   compare_details_lambda_function_name               = "${var.compare_details_lambda_function_name}${local.env_suffix}"
   compare_details_lambda_function_role_name          = var.compare_details_lambda_function_role_name
@@ -129,4 +127,17 @@ module "sqs" {
   source         = "../../modules/sqs"
   sqs_queue_name = var.sqs_queue_name
   sqs_dlq_name   = var.sqs_dlq_name
+}
+
+module "step_function" {
+  source                               = "../../modules/stepFunction"
+  document_state_machine_name          = "${var.document_state_machine_name}${local.env_suffix}"
+  document_state_machine_iam_role_name = var.document_state_machine_iam_role_name
+
+  unzip_lambda_function_arn           = module.document_lambda.unzip_lambda_function_arn
+  write_to_dynamo_lambda_arn          = module.document_lambda.write_to_dynamo_lambda_arn
+  compare_faces_lambda_function_arn   = module.document_lambda.compare_faces_lambda_function_arn
+  compare_details_lambda_function_arn = module.document_lambda.compare_details_lambda_function_arn
+  validate_sqs_queue_url              = module.sqs.sqs_url
+
 }

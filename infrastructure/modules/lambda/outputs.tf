@@ -26,3 +26,24 @@ output "validation_lambda_invoke_arn" {
   description = "Invoke ARN of the validation Lambda function"
   value       = aws_lambda_function.validation_lambda_function.invoke_arn
 }
+
+# OUTPUT FOR STEP FUNCTION LAMBDAS
+output "unzip_lambda_function_arn" {
+  description = "This is the ARN of the 1st lambda function of the Step Function"
+  value       = aws_lambda_function.unzip_lambda_function.arn
+}
+
+output "write_to_dynamo_lambda_arn" {
+  description = "This is the ARN of the 2nd lambda function of the Step Function"
+  value       = aws_lambda_function.write_to_dynamo_lambda_function.arn
+}
+
+output "compare_faces_lambda_function_arn" {
+  description = "This is the ARN of the 3rd lambda function of the Step Function"
+  value       = aws_lambda_function.compare_faces_lambda_function.arn
+}
+
+output "compare_details_lambda_function_arn" {
+  description = "This is the ARN of the 2nd lambda function of the Step Function"
+  value       = aws_lambda_function.compare_details_lambda_function.arn
+}

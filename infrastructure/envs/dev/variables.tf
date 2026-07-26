@@ -257,3 +257,12 @@ variable "sqs_dlq_name" {
   type        = string
 }
 
+# STEP FUNCTION ------------
+variable "document_state_machine_name" {
+  description = "This is the name of the Document State Machine that orchestrates all 4 lambda functions (Unzip -> Write to Dynamo -> [Parallel] Compare Faces & Compare Details -> SQS Queue)"
+  type        = string
+}
+variable "document_state_machine_iam_role_name" {
+  description = "This is the name of the IAM role the Document Step Function will assume"
+  type        = string
+}
