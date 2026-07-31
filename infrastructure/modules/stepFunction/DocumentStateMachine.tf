@@ -64,6 +64,11 @@ resource "aws_sfn_state_machine" "document_state_machine" {
   }
 }
 EOF
+
+  #Enable AWS X-Ray tracing
+  tracing_configuration {
+    enabled = true
+  }
 }
 #Allow Step Functions to assume IAM role
 resource "aws_iam_role" "document_state_machine_iam_role" {
@@ -109,6 +114,17 @@ resource "aws_iam_role_policy" "document_state_machine_policy" {
         Resource = [
           var.validate_sqs_queue_arn
         ]
+      },
+      {
+        # X-Ray API calls don't support resource-level permissions
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets"
+        ]
+        Resource = ["*"]
       }
     ]
   })

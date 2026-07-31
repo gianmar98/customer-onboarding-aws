@@ -8,12 +8,31 @@ All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-pr
 
 - **S3** (`infrastructure/modules/s3/`) — document storage bucket, TLS-only.
 - **DynamoDB** (`infrastructure/modules/dynamodb/`) — `CustomerMetadataTable`, keyed by `APP_UUID`.
-- **Lambda** (`infrastructure/modules/lambda/`) — seven functions forming two pipelines: a monolithic document-processing Lambda (S3-triggered) plus a validation/submit-license pair (API Gateway + SQS), and a separate unzip → write-to-dynamo → compare-faces → compare-details pipeline invoked externally (e.g. by Step Functions, not yet built). Runs face-match (Rekognition) and ID-field extraction (Textract) checks, records results in DynamoDB, and notifies via SNS.
+- **Lambda** (`infrastructure/modules/lambda/`) — seven functions. Four (unzip → write-to-dynamo → compare-faces → compare-details) are the live pipeline, sequenced by Step Functions; they run face-match (Rekognition) and ID-field extraction (Textract) checks, record results in DynamoDB, and notify via SNS. A validation/submit-license pair backs the API Gateway + SQS validation hop. The seventh — the monolithic document Lambda — does all of the above in one handler but is **currently untriggered** (its S3 notification is commented out).
+- **Step Functions** (`infrastructure/modules/stepFunction/`) — `DocumentStateMachine`, plus the S3 → EventBridge → Step Functions chain that starts an execution on every `zipped/` upload.
 - **SNS** (`infrastructure/modules/sns/`) — `ApplicationNotifications` topic with email subscription.
 - **API Gateway** (`infrastructure/modules/apiGateway/`) — `ValidateLicenseApi`, HTTP API exposing `POST /license` (internal mock validator, not a browser-facing API).
-- **SQS** (`infrastructure/modules/sqs/`) — `LicenseQueue` + dead-letter queue, connecting the document Lambda to the submit-license Lambda.
+- **SQS** (`infrastructure/modules/sqs/`) — `LicenseQueue` + dead-letter queue, carrying the state machine's final message to the submit-license Lambda.
 
 All resources deploy to `us-east-1`.
+
+## Request flow
+
+```
+upload <app_uuid>.zip to s3://<bucket>/zipped/
+  └─ EventBridge rule (modules/stepFunction/)
+      └─ DocumentStateMachine
+          1. unzip              → extracts to unzipped/, returns app_uuid
+          2. write-to-dynamo    → parses details CSV → DynamoDB row
+          3. parallel:
+             a. compare-faces   → Rekognition selfie vs license  → LICENSE_SELFIE_MATCH
+             b. compare-details → Textract license vs CSV        → LICENSE_DETAILS_MATCH
+          4. sendMessage → LicenseQueue
+              └─ submit-license Lambda → POST /license (API Gateway → validation Lambda)
+                  └─ LICENSE_VALIDATION → DynamoDB;  failures → SNS
+```
+
+Steps 3a/3b raise on a mismatch, which aborts the execution before step 4 — a failed application never reaches the queue. Per-step detail lives in `modules/stepFunction/README.md` and `modules/lambda/README.md`.
 
 ## Prerequisites
 
@@ -38,15 +57,15 @@ All resources deploy to `us-east-1`.
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
-│   │   ├── lambda/            # IAM (roles + inline + managed), 7 Lambda functions, log groups, S3 + SQS triggers
+│   │   ├── lambda/            # IAM (roles + inline + managed), 7 Lambda functions, log groups, SQS trigger
 │   │   │   ├── lambda_policies.tf              # required_providers, roles, inline + managed policies, attachments, log groups
-│   │   │   ├── document_lambda_function.tf     # document function, archive_file, S3 notification, invoke permission
+│   │   │   ├── document_lambda_function.tf     # document function, archive_file, invoke permission (S3 notification commented out)
 │   │   │   ├── validate_lambda_function.tf     # validation function + archive_file
 │   │   │   ├── submit_license_lambda_function.tf # submit-license function + archive_file + SQS event source mapping
-│   │   │   ├── unzip_lambda_function.tf        # unzip function + archive_file (no trigger — invoked directly)
-│   │   │   ├── write_to_dynamo_lambda_function.tf # write-to-dynamo function + archive_file (no trigger — invoked directly)
-│   │   │   ├── compare_faces_lambda_function.tf   # compare-faces function + archive_file (no trigger — invoked directly)
-│   │   │   ├── compare_details_lambda_function.tf # compare-details function + archive_file (no trigger — invoked directly)
+│   │   │   ├── unzip_lambda_function.tf        # unzip function + archive_file (invoked by the state machine)
+│   │   │   ├── write_to_dynamo_lambda_function.tf # write-to-dynamo function + archive_file (invoked by the state machine)
+│   │   │   ├── compare_faces_lambda_function.tf   # compare-faces function + archive_file (invoked by the state machine)
+│   │   │   ├── compare_details_lambda_function.tf # compare-details function + archive_file (invoked by the state machine)
 │   │   │   ├── src/                            # Python handlers (s3_upload.py, validate_lambda.py, submit_license.py, unzip_lambda.py, write_to_dynamo_lambda.py, compare_faces_lambda.py, compare_details_lambda.py)
 │   │   │   ├── build/                      # archive_file zip output (gitignored)
 │   │   │   ├── variables.tf
@@ -62,15 +81,20 @@ All resources deploy to `us-east-1`.
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
-│   │   └── sqs/               # LicenseQueue + LicenseDeadLetterQueue (DLQ)
-│   │       ├── sqs.tf
+│   │   ├── sqs/               # LicenseQueue + LicenseDeadLetterQueue (DLQ)
+│   │   │   ├── sqs.tf
+│   │   │   ├── variables.tf
+│   │   │   ├── outputs.tf      # exposes queue arn, DLQ arn, queue name, queue url
+│   │   │   └── README.md
+│   │   └── stepFunction/      # DocumentStateMachine + S3 -> EventBridge -> Step Functions trigger
+│   │       ├── DocumentStateMachine.tf  # state machine, its IAM role/policy, bucket notification, EventBridge rule/target/role
 │   │       ├── variables.tf
-│   │       ├── outputs.tf      # exposes queue arn, DLQ arn, queue name, queue url
+│   │       ├── outputs.tf
 │   │       └── README.md
 │   └── envs/
 │       └── dev/
 │           ├── backend.tf       # state at envs/dev/terraform.tfstate
-│           ├── main.tf          # composes all 6 sub-modules
+│           ├── main.tf          # composes all 7 sub-modules
 │           ├── variables.tf     # pass-through declarations
 │           ├── outputs.tf       # forwards each sub-module's outputs
 │           └── terraform.tfvars # gitignored

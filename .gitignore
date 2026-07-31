@@ -55,6 +55,14 @@ TESTS/
 
 #Captured Lambda invoke output payloads (scratch)
 response*.json
+
+*.pyc
+
+
 # aws s3 cp 8d247914.zip s3://documentbucket-aci1-dev/zipped/
 # aws s3 cp 9c358026.zip s3://documentbucket-aci1-dev/zipped/
-*.pyc
+# aws s3 cp 7a135804.zip s3://documentbucket-aci1-dev/zipped/
+
+# aws s3 cp 8d247914.zip s3://documentbucket-aci1-dev/zipped/ &&
+# aws s3 cp 9c358026.zip s3://documentbucket-aci1-dev/zipped/ &&
+# aws s3 cp 7a135804.zip s3://documentbucket-aci1-dev/zipped/

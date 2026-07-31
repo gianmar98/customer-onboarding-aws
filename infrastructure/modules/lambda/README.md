@@ -1,6 +1,8 @@
 # Lambda Module
 
-Provisions seven Lambda functions — the document-handling Lambda, the mock validation Lambda, the SQS-triggered submit-license Lambda, and a four-step Step Functions-style pipeline (unzip → write-to-DynamoDB → compare-faces → compare-details) — along with their execution roles + policies, CloudWatch log groups, and the event sources that trigger them (S3 notification for the document Lambda, SQS event source mapping for the submit-license Lambda; the unzip/write-to-dynamo/compare-faces/compare-details Lambdas are invoked directly, e.g. by a Step Functions state machine or manual `aws lambda invoke`, not wired to a Terraform-managed trigger in this module).
+Provisions seven Lambda functions — the document-handling Lambda, the mock validation Lambda, the SQS-triggered submit-license Lambda, and the four-step pipeline (unzip → write-to-DynamoDB → compare-faces → compare-details) — along with their execution roles + policies and CloudWatch log groups.
+
+**Only one trigger lives in this module:** the SQS event source mapping for the submit-license Lambda. The four pipeline Lambdas are invoked by the `DocumentStateMachine` in `modules/stepFunction/`, which is also where the bucket's EventBridge notification lives. The document Lambda's own S3 notification is **commented out** in `document_lambda_function.tf` — the function still deploys but nothing invokes it (see Notes).
 
 > Resource names are env-stamped **before** they reach this module — `envs/dev/main.tf` appends `-${project_environment}` to each name input. The module itself is env-agnostic. (The validation Lambda names, and the unzip/write-to-dynamo/compare-faces/compare-details IAM role/policy names, are the exception — only their **function names** are env-suffixed; role and CloudWatch-policy names are passed in **without** the suffix.)
 >
@@ -9,18 +11,18 @@ Provisions seven Lambda functions — the document-handling Lambda, the mock val
 ## Files
 
 - `lambda_policies.tf` — `required_providers`, IAM roles, inline policy (S3/DynamoDB/SNS), CloudWatch Logs policies + attachments, Rekognition policy + attachment, Textract policy + attachments, the submit-license SQS poll policy + attachment, and log groups for all seven Lambda functions.
-- `document_lambda_function.tf` — `archive_file` packaging, the document Lambda function, the S3 bucket notification, and the `lambda:InvokeFunction` permission for S3.
+- `document_lambda_function.tf` — `archive_file` packaging, the document Lambda function, and the `lambda:InvokeFunction` permission for S3. The `aws_s3_bucket_notification` that used to trigger it is commented out.
 - `validate_lambda_function.tf` — `archive_file` packaging and the validation Lambda function (mock 3rd-party license validation).
 - `submit_license_lambda_function.tf` — `archive_file` packaging, the submit-license Lambda function, and the `aws_lambda_event_source_mapping` that wires `LicenseQueue` to it (`batch_size = 1`).
-- `unzip_lambda_function.tf` — `archive_file` packaging and the unzip Lambda function. No `environment` block configured (commented out) and no trigger wired in this module.
-- `write_to_dynamo_lambda_function.tf` — `archive_file` packaging and the write-to-DynamoDB Lambda function. Exposes `TABLE` as a runtime env var; no trigger wired in this module.
-- `compare_faces_lambda_function.tf` — `archive_file` packaging and the compare-faces Lambda function. Exposes `TABLE` and `TOPIC` as runtime env vars; no trigger wired in this module.
-- `compare_details_lambda_function.tf` — `archive_file` packaging and the compare-details Lambda function. Exposes `TABLE` and `TOPIC` as runtime env vars; no trigger wired in this module.
-- `src/s3_upload.py` — Python 3.13 document-processing handler (still the monolithic pipeline triggered by the S3 `zipped/` prefix — independent of the unzip/write-to-dynamo/compare-faces split below). Full invocation flow: (1) downloads and extracts the triggering zip into `/tmp/unzipped/`, re-uploads each file to `unzipped/` in S3; (2) `parse_csv_ddb` reads `<app_uuid>_details.csv` via `csv.DictReader` + `next()` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) `compare_faces` calls Rekognition `compare_faces` using S3 object references (not local bytes) with `SimilarityThreshold=80`, derives `LICENSE_SELFIE_MATCH = True/False` from `FaceMatches`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes a failure message to SNS if `LICENSE_SELFIE_MATCH` is `False`; (6) `textract_response` extracts the license's identity fields via `analyze_id`; (7) `compare_dictionaries` does an exact string equality check of the CSV vs Textract subsets and writes `LICENSE_DETAILS_MATCH` to DynamoDB, publishing to SNS on mismatch; (8) sends `{"driver_license_id": details_dict['DOCUMENT_NUMBER'], "validation_override": True, "uuid": app_uuid}` to `LicenseQueue` via `sqs.send_message` (JSON body), inside a `try/except ClientError` — `ClientError` is imported from `botocore.exceptions`, so a send failure is caught rather than raising `NameError`. **The handler does not raise on a mismatch** — all checks run every invocation, then the SQS message is always sent. Reads `TABLE`, `TOPIC`, and `SQS_URL` from environment variables.
+- `unzip_lambda_function.tf` — `archive_file` packaging and the unzip Lambda function. No `environment` block configured (commented out); invoked by the state machine.
+- `write_to_dynamo_lambda_function.tf` — `archive_file` packaging and the write-to-DynamoDB Lambda function. Exposes `TABLE` as a runtime env var; invoked by the state machine.
+- `compare_faces_lambda_function.tf` — `archive_file` packaging and the compare-faces Lambda function. Exposes `TABLE` and `TOPIC` as runtime env vars; invoked by the state machine.
+- `compare_details_lambda_function.tf` — `archive_file` packaging and the compare-details Lambda function. Exposes `TABLE` and `TOPIC` as runtime env vars; invoked by the state machine.
+- `src/s3_upload.py` — Python 3.13 document-processing handler. The monolithic equivalent of the four-step pipeline below, in one function; **no longer triggered** (its S3 notification is commented out), so this describes what it does when invoked manually. Full invocation flow: (1) downloads and extracts the triggering zip into `/tmp/unzipped/`, re-uploads each file to `unzipped/` in S3; (2) `parse_csv_ddb` reads `<app_uuid>_details.csv` via `csv.DictReader` + `next()` and writes the row + `APP_UUID` to DynamoDB via `put_item`; (3) `compare_faces` calls Rekognition `compare_faces` using S3 object references (not local bytes) with `SimilarityThreshold=80`, derives `LICENSE_SELFIE_MATCH = True/False` from `FaceMatches`; (4) updates the DynamoDB item with `LICENSE_SELFIE_MATCH` via `update_item`; (5) publishes a failure message to SNS if `LICENSE_SELFIE_MATCH` is `False`; (6) `textract_response` extracts the license's identity fields via `analyze_id`; (7) `compare_dictionaries` does an exact string equality check of the CSV vs Textract subsets and writes `LICENSE_DETAILS_MATCH` to DynamoDB, publishing to SNS on mismatch; (8) sends `{"driver_license_id": details_dict['DOCUMENT_NUMBER'], "validation_override": True, "uuid": app_uuid}` to `LicenseQueue` via `sqs.send_message` (JSON body), inside a `try/except ClientError` — `ClientError` is imported from `botocore.exceptions`, so a send failure is caught rather than raising `NameError`. **The handler does not raise on a mismatch** — all checks run every invocation, then the SQS message is always sent. Reads `TABLE`, `TOPIC`, and `SQS_URL` from environment variables.
 - `src/validate_lambda.py` — Python 3.13 mock validation handler. Reads `driver_license_id` and `validation_override` from the API Gateway event body and returns `validation_override` directly (simulates both true and false validation outcomes).
 - `src/submit_license.py` — Python 3.13 submit-license handler (`batch_size = 1`, so always `event['Records'][0]`). Parses `driver_license_id`, `validation_override`, `uuid` from the SQS record's `body`; POSTs that payload to the third-party validation endpoint at `VALIDATE_LICENSE_API_URL` via `urllib3` and waits for the response; writes `LICENSE_VALIDATION` to DynamoDB via `update_item` on `APP_UUID` for both `True`/`False` outcomes; on `False`, also publishes a failure notification to SNS. Reads `TABLE`, `TOPIC` (must be the topic **ARN**), `VALIDATE_LICENSE_API`, and `VALIDATE_LICENSE_API_URL` from environment variables.
 - `src/unzip_lambda.py` — Python 3.13 unzip handler, first step of the pipeline. Expects `event['detail']['bucket']['name']` and `event['detail']['object']['key']` (e.g. `zipped/<app_uuid>.zip`). Wraps its body in `try/finally` — clears and recreates `/tmp/unzipped/` at the start (so a warm container can't leak files from a prior invocation) and always `shutil.rmtree`s it again in `finally`. `unzip_object` downloads the zip to `/tmp/`, extracts every member into `/tmp/unzipped/` (creating the dir if missing), deletes the local zip, and filters out `__`-prefixed junk (e.g. macOS's `__MACOSX`) from the returned file list. The handler re-uploads each extracted file to the `unzipped/` prefix in S3, derives `app_uuid` from the zip's filename (`os.path.basename(key).replace(".zip", "")`), and returns `{"app_uuid": app_uuid}`. No environment variables read.
-- `src/write_to_dynamo_lambda.py` — Python 3.13 handler, second step of the pipeline (intended to run after the unzip Lambda, e.g. from a Step Functions state machine). Expects `event['detail']['bucket']['name']` and `event['application']['app_uuid']`. Downloads `unzipped/<app_uuid>_details.csv` from S3 to `/tmp/`, parses it with `csv.DictReader` + `next()`, and writes the row + `APP_UUID` to DynamoDB via `put_item`. Returns `{"driver_license_id": <CSV DOCUMENT_NUMBER>, "validation_override": True, "app_uuid": app_uuid}` — shaped for a downstream state to hand off to submit-license validation. Reads `TABLE` from environment variables.
+- `src/write_to_dynamo_lambda.py` — Python 3.13 handler, second step of the pipeline (runs after the unzip Lambda, whose return value the state machine places at `$.application`). Expects `event['detail']['bucket']['name']` and `event['application']['app_uuid']`. Downloads `unzipped/<app_uuid>_details.csv` from S3 to `/tmp/`, parses it with `csv.DictReader` + `next()`, and writes the row + `APP_UUID` to DynamoDB via `put_item`. Returns `{"driver_license_id": <CSV DOCUMENT_NUMBER>, "validation_override": True, "app_uuid": app_uuid}` — shaped for a downstream state to hand off to submit-license validation. Reads `TABLE` from environment variables.
 - `src/compare_faces_lambda.py` — Python 3.13 handler, third step of the pipeline. Expects `event['application']['app_uuid']` and `event['detail']['bucket']['name']`; derives `unzipped/<app_uuid>_selfie.png` and `unzipped/<app_uuid>_license.png` as the S3 keys to compare. `compare_faces` calls Rekognition `compare_faces` with `SimilarityThreshold=80` (wrapped in `try/except` — any Rekognition error is logged and treated as a non-match rather than aborting the invocation), sets `LICENSE_SELFIE_MATCH` in DynamoDB via `update_item` regardless of outcome, and publishes a failure notification to SNS when the match is `False`. `lambda_handler` **raises `ValueError`** on a non-match (unlike `s3_upload.py`'s monolithic flow, which never raises) — this makes a face-match failure surface as a Lambda invocation failure, e.g. for a Step Functions `Catch` block — and otherwise returns `True`. Reads `TABLE` and `TOPIC` from environment variables.
 - `src/compare_details_lambda.py` — Python 3.13 handler, fourth step of the pipeline. Expects `event['detail']['bucket']['name']` and `event['application']['app_uuid']`; derives `unzipped/<app_uuid>_details.csv` and `unzipped/<app_uuid>_license.png` as the S3 keys. Downloads the details CSV to `/tmp/` and parses it with `csv.DictReader` + `next()`; `textract_response` extracts the license's identity fields via `analyze_id`, keeping only the eight required fields (`DOCUMENT_NUMBER`, `FIRST_NAME`, `LAST_NAME`, `DATE_OF_BIRTH`, `ADDRESS`, `STATE_IN_ADDRESS`, `CITY_IN_ADDRESS`, `ZIP_CODE_IN_ADDRESS`). `compare_dictionaries` narrows **both** the CSV and Textract sides to those fields (via `.get(k, '')`) and compares them, writes `LICENSE_DETAILS_MATCH` to DynamoDB via `update_item` regardless of outcome, and on a mismatch publishes a failure notification to SNS and **raises `ValueError`** (same fail-loud pattern as `compare_faces_lambda.py`; the DDB update and SNS publish both run before the raise). Otherwise the handler returns `True`. Reads `TABLE` and `TOPIC` (must be the topic **ARN**) from environment variables at import time. **Compares against the CSV in S3, not a `get_item` on the DynamoDB row** — the two carry the same values since the row was populated from that CSV upstream.
 
@@ -42,8 +44,8 @@ Provisions seven Lambda functions — the document-handling Lambda, the mock val
 - `aws_cloudwatch_log_group.document_lambda_logs` — `/aws/lambda/<function_name>`, 14-day retention. Function name carries the env suffix, so the log group does too.
 - `data.archive_file.document_lambda_function_archive_file` — zips `src/s3_upload.py` to `build/s3_upload.zip`.
 - `aws_lambda_function.document_lambda_function` — Python 3.13, handler `s3_upload.lambda_handler`, wired to the log group via `logging_config`, `source_code_hash` from the archive. Exposes `TABLE`, `TOPIC`, and `SQS_URL` (the `LicenseQueue` URL, from `var.sqs_url`) as runtime env vars.
-- `aws_s3_bucket_notification.document_bucket_notification` — triggers on `s3:ObjectCreated:Put` under the `zipped/` prefix.
-- `aws_lambda_permission.allow_s3_invoke` — grants `s3.amazonaws.com` permission to invoke the function (`statement_id = "AllowS3Invoke"`).
+- `aws_s3_bucket_notification.document_bucket_notification` — **commented out.** Used to trigger on `s3:ObjectCreated:Put` under the `zipped/` prefix; that prefix is now handled by the EventBridge rule in `modules/stepFunction/`.
+- `aws_lambda_permission.allow_s3_invoke` — grants `s3.amazonaws.com` permission to invoke the function (`statement_id = "AllowS3Invoke"`). Still applied, but currently unused since no notification targets the function.
 
 ### Validation Lambda
 
@@ -76,7 +78,7 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_unzipLicenseLambdaRole` — attaches the CW policy to the unzip Lambda role.
 - `aws_cloudwatch_log_group.unzip_license_lambda_logs` — `/aws/lambda/<unzip_lambda_function_name>`, 14-day retention.
 - `data.archive_file.unzip_lambda_function_archive_file` — zips `src/unzip_lambda.py` to `build/unzip_lambda.zip`.
-- `aws_lambda_function.unzip_lambda_function` — Python 3.13, handler `unzip_lambda.lambda_handler`, wired to its log group via `logging_config`. No environment variables configured (block commented out) and no event source — invoked directly (e.g. from a Step Functions state machine).
+- `aws_lambda_function.unzip_lambda_function` — Python 3.13, handler `unzip_lambda.lambda_handler`, wired to its log group via `logging_config`. No environment variables configured (block commented out). No event source of its own — invoked as step 1 by `DocumentStateMachine`.
 
 ### Write-to-DynamoDB Lambda
 
@@ -86,7 +88,7 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_writeToDynamoLambdaRole` — attaches the CW policy to the write-to-dynamo Lambda role.
 - `aws_cloudwatch_log_group.write_to_dynamo_lambda_logs` — `/aws/lambda/<write_to_dynamo_lambda_function_name>`, 14-day retention.
 - `data.archive_file.write_to_dynamo_lambda_function_archive_file` — zips `src/write_to_dynamo_lambda.py` to `build/write_to_dynamo_lambda.zip`.
-- `aws_lambda_function.write_to_dynamo_lambda_function` — Python 3.13, handler `write_to_dynamo_lambda.lambda_handler`, wired to its log group via `logging_config`. Exposes `TABLE` as a runtime env var (`TOPIC`/`SQS_URL` inputs are commented out — unused by this handler). No event source — invoked directly.
+- `aws_lambda_function.write_to_dynamo_lambda_function` — Python 3.13, handler `write_to_dynamo_lambda.lambda_handler`, wired to its log group via `logging_config`. Exposes `TABLE` as a runtime env var (`TOPIC`/`SQS_URL` inputs are commented out — unused by this handler). No event source of its own — invoked as step 2 by `DocumentStateMachine`.
 
 ### Compare-Faces Lambda
 
@@ -97,7 +99,7 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 - `aws_iam_role_policy_attachment.attach_rekognition_policy_to_compare_face_lambda` — attaches the shared `rekognition_face_comparison_policy` (same customer-managed policy the document Lambda uses) to the compare-faces Lambda role.
 - `aws_cloudwatch_log_group.compare_faces_lambda_logs` — `/aws/lambda/<compare_faces_lambda_function_name>`, 14-day retention.
 - `data.archive_file.compare_faces_lambda_function_archive_file` — zips `src/compare_faces_lambda.py` to `build/compare_faces_lambda.zip`.
-- `aws_lambda_function.compare_faces_lambda_function` — Python 3.13, handler `compare_faces_lambda.lambda_handler`, wired to its log group via `logging_config`. Exposes `TABLE` and `TOPIC` as runtime env vars. No event source — invoked directly.
+- `aws_lambda_function.compare_faces_lambda_function` — Python 3.13, handler `compare_faces_lambda.lambda_handler`, wired to its log group via `logging_config`. Exposes `TABLE` and `TOPIC` as runtime env vars. No event source of its own — invoked as step 3(a) by `DocumentStateMachine`.
 
 ### Compare-Details Lambda
 
@@ -108,7 +110,7 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 - `aws_iam_role_policy_attachment.attach_textract_to_compare_details_lambda` — attaches the shared `textract_policy` (`textract:AnalyzeID`, same customer-managed policy the document Lambda uses) to the compare-details Lambda role.
 - `aws_cloudwatch_log_group.compare_details_lambda_logs` — `/aws/lambda/<compare_details_lambda_function_name>`, 14-day retention.
 - `data.archive_file.compare_details_lambda_function_archive_file` — zips `src/compare_details_lambda.py` to `build/compare_details_lambda.zip`.
-- `aws_lambda_function.compare_details_lambda_function` — Python 3.13, handler `compare_details_lambda.lambda_handler`, wired to its log group via `logging_config`. Exposes `TABLE` and `TOPIC` as runtime env vars. No event source — invoked directly.
+- `aws_lambda_function.compare_details_lambda_function` — Python 3.13, handler `compare_details_lambda.lambda_handler`, wired to its log group via `logging_config`. Exposes `TABLE` and `TOPIC` as runtime env vars. No event source of its own — invoked as step 3(b) by `DocumentStateMachine`.
 
 ## Inputs
 
@@ -125,7 +127,7 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 | `current_region` | `string` | Region used to build region-scoped log ARNs (env passes `data.aws_region`) |
 | `current_account_id` | `string` | Account ID used to build account-scoped log ARNs (env passes `data.aws_caller_identity`) |
 | `document_s3_bucket_arn` | `string` | Bucket ARN — used in the inline S3 policy and as `source_arn` on the invoke permission |
-| `document_s3_bucket_name` | `string` | Bucket name — used by the S3 notification resource |
+| `document_s3_bucket_name` | `string` | Bucket name — **currently unused**; its only references are the commented-out notification blocks in `document_lambda_function.tf` and `submit_license_lambda_function.tf` |
 | `dynamodb_metadata_table_arn` | `string` | DynamoDB table ARN — scoped in the inline policy |
 | `dynamodb_document_table_name` | `string` | DynamoDB table **name** — passed to the document Lambda as the `TABLE` environment variable |
 | `sns_topic_arn` | `string` | SNS topic ARN — scoped in the inline policy and used as the `TOPIC` env variable |
@@ -165,12 +167,16 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 | `document_lambda_function_arn` | ARN of the Lambda function |
 | `document_lambda_function_name` | Name of the Lambda function |
 | `validation_lambda_invoke_arn` | Invoke ARN of the validation Lambda — consumed by the apiGateway module's `AWS_PROXY` integration |
+| `unzip_lambda_function_arn` / `unzip_lambda_function_name` | Step 1 of the pipeline |
+| `write_to_dynamo_lambda_arn` / `write_to_dynamo_lambda_name` | Step 2 of the pipeline |
+| `compare_faces_lambda_function_arn` / `compare_faces_lambda_function_name` | Step 3(a) of the pipeline |
+| `compare_details_lambda_function_arn` / `compare_details_lambda_function_name` | Step 3(b) of the pipeline |
 
-The unzip, write-to-DynamoDB, compare-faces, and compare-details Lambdas don't expose any outputs yet — nothing outside this module currently needs their ARNs/names.
+The four pipeline outputs are consumed by `modules/stepFunction/` (via the env) — the ARNs become the `Resource` of each state and scope the state machine's `lambda:InvokeFunction` policy.
 
 ## Cross-module dependencies
 
-This module consumes values from all three sibling modules plus two env-level `data` sources. They flow through the env (sub-modules can't reference each other directly):
+This module consumes values from five sibling modules plus two env-level `data` sources, and feeds the stepFunction module in turn. Everything flows through the env (sub-modules can't reference each other directly):
 
 ```
 modules/s3/outputs.tf         → document_bucket_arn, document_bucket_name
@@ -194,6 +200,7 @@ modules/lambda/variables.tf   → receives them as var.*
 
 - The `build/` directory holds the zipped Lambda payload generated by `archive_file`. It's gitignored.
 - `source_code_hash` is derived from the archive's base64 SHA-256, so any change to `src/s3_upload.py` triggers a redeploy on `terraform apply`.
-- The S3 trigger is scoped to the `zipped/` prefix. The handler writes its output under `unzipped/`, so it doesn't re-trigger itself — **don't broaden the prefix filter** or you'll create an infinite invocation loop.
-- The unzip/write-to-dynamo/compare-faces/compare-details Lambdas form a second, separate pipeline from the monolithic `s3_upload.py` — none of the four has a Terraform-managed trigger (no S3 notification, no event source mapping), so something outside this module (e.g. a Step Functions state machine, not yet defined in this repo) must invoke them in sequence and pass each one's output into the next.
+- **The document Lambda (`s3_upload.py`) is dead code as deployed** — its S3 notification is commented out and nothing else invokes it, so it and its role/policies/log group cost nothing but sit unused. Its logic is superseded by the four-step pipeline. Left in place deliberately; delete it only if you're sure you won't want the monolithic path back.
+- The unzip/write-to-dynamo/compare-faces/compare-details Lambdas are sequenced by `DocumentStateMachine` in `modules/stepFunction/`, which reacts to `zipped/` uploads via EventBridge. **Don't broaden that prefix** — the unzip handler writes to `unzipped/` in the same bucket, so a wider filter loops.
+- The four handlers read each other's output off the state machine's accumulated state (`event['application']['app_uuid']`, etc.), not off a bare payload — a `ResultPath` change in the state machine definition breaks them. See `modules/stepFunction/README.md`.
 - `unzip_lambda.py`, `compare_faces_lambda.py`, and `compare_details_lambda.py` all derive selfie/license/details S3 keys as `unzipped/<app_uuid>_selfie.png` / `unzipped/<app_uuid>_license.png` / `unzipped/<app_uuid>_details.csv` — keep them in sync if the upload convention changes.
