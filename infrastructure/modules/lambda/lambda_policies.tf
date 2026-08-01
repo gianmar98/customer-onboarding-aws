@@ -497,6 +497,28 @@ resource "aws_cloudwatch_log_group" "write_to_dynamo_lambda_logs" {
   name              = local.write_to_dynamo_log_group_name
   retention_in_days = 14
 }
+#INLINE X-RAY TRACING POLICY
+resource "aws_iam_role_policy" "write_to_dynamo_xray_policy" { # what the identity is allowed to do
+  role = aws_iam_role.write_to_dynamo_lambda_role.id
+  name = "WriteToDynamoXRayTracingPolicy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { # S3 Get object from Lambda (downloads the details CSV, never uploads)
+        Sid    = "XRayTracingAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets"
+        ],
+        Resource = ["*"]
+      },
+    ]
+  })
+}
 #------------------------------------------------------------------------------
 
 

@@ -60,6 +60,7 @@ module "document_lambda" {
   #Project
   current_region     = data.aws_region.currentUser.region
   current_account_id = data.aws_caller_identity.currentUser.account_id
+  project_name       = var.project_name
 
   #Submit Lambda
   document_lambda_policy_name        = "${var.document_lambda_policy_name}${local.env_suffix}"

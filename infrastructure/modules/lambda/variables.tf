@@ -18,6 +18,10 @@ variable "current_account_id" {
   description = "Current account ID"
   type        = string
 }
+variable "project_name" {
+  description = "Project name — used as the Powertools service name in X-Ray traces"
+  type        = string
+}
 variable "lambda_cloudwatch_logs_policy_name" {
   description = "Name of the CloudWatch Logs Policy"
   type        = string

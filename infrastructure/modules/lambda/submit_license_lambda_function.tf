@@ -7,7 +7,7 @@ data "archive_file" "submit_license_lambda_function_archive_file" {
 
 # Lambda function
 resource "aws_lambda_function" "submit_license_lambda_function" {
-  description   = ""
+  description   = "Function to submit license to Mock 3rd party validation service through API GW"
   filename      = data.archive_file.submit_license_lambda_function_archive_file.output_path
   function_name = var.submit_license_lambda_function_name
   role          = aws_iam_role.submit_license_lambda_role.arn

@@ -5,6 +5,9 @@
 import os
 import csv
 import boto3
+# Provided by the AWS Lambda Powertools layer (see write_to_dynamo_lambda_function.tf), not by the deployment zip.
+#it resolves purely because Lambda mounted the layer at /opt/python.
+from aws_lambda_powertools import Tracer
 
 
 unzipped_s3_prefix = "unzipped/"
@@ -15,6 +18,10 @@ table = dynamodb.Table(os.environ['TABLE'])# add ENV variable TABLE
 
 #S3
 s3 = boto3.client('s3')
+
+#X-Ray. Module scope: runs once per cold start. Reads POWERTOOLS_SERVICE_NAME and patches
+#boto3 so S3/DynamoDB calls emit their own subsegments.
+tracer = Tracer()
 
 
 def parse_csv_ddb(app_uuid, details_file):
@@ -27,7 +34,13 @@ def parse_csv_ddb(app_uuid, details_file):
 
     return details_dict
 
+# @tracer.capture_lambda_handler wraps your handler and does four things per invocation:
 
+#   1. Opens a subsegment named ## lambda_handler around your handler body, so you can see your own code's time separately from Lambda's init overhead.
+#   2. Adds a ColdStart annotation — annotations are indexed, so you can filter X-Ray for cold starts specifically.
+#   3. Adds the service name as an annotation (POWERTOOLS_SERVICE_NAME = var.project_name) in env vars.
+#   4. Records the handler's return value as trace metadata, and on an exception, records the error and re-raises.
+@tracer.capture_lambda_handler
 def lambda_handler(event, context):
     """
     Called from step functions to load CSV to DynamoDB

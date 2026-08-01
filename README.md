@@ -2,14 +2,20 @@
 
 AWS infrastructure for a serverless document-handling backend, provisioned entirely with Terraform.
 
+## Architecture
+
+![Serverless document-handling backend: S3 upload triggers EventBridge, which starts a Step Functions state machine orchestrating four Lambdas against Rekognition, Textract, DynamoDB and SQS](docs/Architecture.png)
+
+Source: [`docs/aci-capstone1-serverless-backend.drawio`](docs/aci-capstone1-serverless-backend.drawio) — edit there and re-export, never edit the PNG. Conventions and layout rules for this diagram are documented in [`docs/draw_io.md`](docs/draw_io.md). Greyed boxes are commented out in Terraform and not deployed.
+
 ## Stack
 
 All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-prod`) at the env layer — see **Env-suffix naming** below. Each service below is provisioned by its own Terraform sub-module; see that module's `README.md` for resource-level detail, inputs/outputs, and gotchas.
 
 - **S3** (`infrastructure/modules/s3/`) — document storage bucket, TLS-only.
 - **DynamoDB** (`infrastructure/modules/dynamodb/`) — `CustomerMetadataTable`, keyed by `APP_UUID`.
-- **Lambda** (`infrastructure/modules/lambda/`) — seven functions. Four (unzip → write-to-dynamo → compare-faces → compare-details) are the live pipeline, sequenced by Step Functions; they run face-match (Rekognition) and ID-field extraction (Textract) checks, record results in DynamoDB, and notify via SNS. A validation/submit-license pair backs the API Gateway + SQS validation hop. The seventh — the monolithic document Lambda — does all of the above in one handler but is **currently untriggered** (its S3 notification is commented out).
-- **Step Functions** (`infrastructure/modules/stepFunction/`) — `DocumentStateMachine`, plus the S3 → EventBridge → Step Functions chain that starts an execution on every `zipped/` upload.
+- **Lambda** (`infrastructure/modules/lambda/`) — six deployed functions. Four (unzip → write-to-dynamo → compare-faces → compare-details) are the live pipeline, sequenced by Step Functions; they run face-match (Rekognition) and ID-field extraction (Textract) checks, record results in DynamoDB, and notify via SNS. A validation/submit-license pair backs the API Gateway + SQS validation hop. A seventh, the monolithic document Lambda that did all of the above in one handler, is **commented out** — superseded by the pipeline, source retained.
+- **Step Functions** (`infrastructure/modules/stepFunction/`) — `DocumentStateMachine`, plus the S3 → EventBridge → Step Functions chain that starts an execution on every `zipped/` upload. X-Ray tracing is enabled end to end; `WriteToDynamoLambdaFunction` is additionally instrumented with AWS Lambda Powertools, so its S3 and DynamoDB calls show as individual subsegments (CloudWatch → Application Signals → Traces).
 - **SNS** (`infrastructure/modules/sns/`) — `ApplicationNotifications` topic with email subscription.
 - **API Gateway** (`infrastructure/modules/apiGateway/`) — `ValidateLicenseApi`, HTTP API exposing `POST /license` (internal mock validator, not a browser-facing API).
 - **SQS** (`infrastructure/modules/sqs/`) — `LicenseQueue` + dead-letter queue, carrying the state machine's final message to the submit-license Lambda.
@@ -33,6 +39,22 @@ upload <app_uuid>.zip to s3://<bucket>/zipped/
 ```
 
 Steps 3a/3b raise on a mismatch, which aborts the execution before step 4 — a failed application never reaches the queue. Per-step detail lives in `modules/stepFunction/README.md` and `modules/lambda/README.md`.
+
+## Observability
+
+AWS X-Ray tracing is enabled on `DocumentStateMachine` and on `WriteToDynamoLambdaFunction`. View traces in the console under **CloudWatch → Application Signals (APM) → Traces**.
+
+**State machine — every state in one trace.** Enabling `tracing_configuration` on the state machine gives a timed segment per state, including both `PerformParallelChecks` branches and the final SQS send:
+
+![X-Ray trace of DocumentStateMachine showing timed segments for each state, including both parallel branches and the SQS send](docs/X-Ray_tracing_stepfunctions.png)
+
+**Lambda — inside a single function.** `WriteToDynamoLambdaFunction` additionally has `tracing_config { mode = "Active" }` and the AWS Lambda Powertools layer, so its handler is broken down further: a `## lambda_handler` subsegment with the individual S3 and DynamoDB calls nested beneath it:
+
+![X-Ray trace of WriteToDynamoLambdaFunction showing the lambda_handler subsegment with nested S3 and DynamoDB calls](docs/X-Ray_tracing_writedynamolambda.png)
+
+The other three pipeline Lambdas are untraced and appear as flat call targets — tracing adds roughly 700ms of cold-start time for the layer, so it's applied selectively.
+
+> Both require `xray:*` permissions on their **own** IAM role. Without them, tracing still reports as enabled and executions still succeed, but no trace data is ever emitted and nothing logs an error. See `modules/stepFunction/README.md` and `modules/lambda/README.md`.
 
 ## Prerequisites
 
@@ -59,7 +81,7 @@ Steps 3a/3b raise on a mismatch, which aborts the execution before step 4 — a 
 │   │   │   └── README.md
 │   │   ├── lambda/            # IAM (roles + inline + managed), 7 Lambda functions, log groups, SQS trigger
 │   │   │   ├── lambda_policies.tf              # required_providers, roles, inline + managed policies, attachments, log groups
-│   │   │   ├── document_lambda_function.tf     # document function, archive_file, invoke permission (S3 notification commented out)
+│   │   │   ├── document_lambda_function.tf     # monolithic document function — entirely commented out
 │   │   │   ├── validate_lambda_function.tf     # validation function + archive_file
 │   │   │   ├── submit_license_lambda_function.tf # submit-license function + archive_file + SQS event source mapping
 │   │   │   ├── unzip_lambda_function.tf        # unzip function + archive_file (invoked by the state machine)
