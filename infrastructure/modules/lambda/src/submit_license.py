@@ -42,7 +42,7 @@ env_topic = os.environ['TOPIC']
 
 
 def lambda_handler(event, context):
-    "Takes API gateway event and responds with the validation_override"
+    "Polls LicenseQueue, POSTs the license to the validation API, and records the result in DynamoDB."
     Records = event['Records']
     Record = Records[0]
     body = Record["body"]
