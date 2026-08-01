@@ -57,28 +57,20 @@ def lambda_handler(event, context):
         response_data = json.loads(response.data.decode("utf-8"))
         print(f'Response => {response_data}')
 
-        if response_data == True:
-            print("Success")
-            table.update_item(
-                Key={
-                    "APP_UUID":uuid
-                },
-                UpdateExpression="SET LICENSE_VALIDATION = :v_match",
-                ExpressionAttributeValues={
-                    ':v_match': response_data
-                }
-            )
-        else:
-            print("Failure")
-            table.update_item(
-                Key={
-                    "APP_UUID":uuid
-                },
-                UpdateExpression="SET LICENSE_VALIDATION = :v_match",
-                ExpressionAttributeValues={
-                    ':v_match': response_data
-                }
-            )
+        # The DynamoDB write is identical either way — only the SNS notification is
+        # conditional, so the write happens once outside the branch.
+        print("Success" if response_data == True else "Failure")
+        table.update_item(
+            Key={
+                "APP_UUID":uuid
+            },
+            UpdateExpression="SET LICENSE_VALIDATION = :v_match",
+            ExpressionAttributeValues={
+                ':v_match': response_data
+            }
+        )
+
+        if response_data != True:
             sns.publish(
                 TopicArn=env_topic,
                 Message='License photo validation FAILED',
@@ -87,7 +79,15 @@ def lambda_handler(event, context):
 
     except Exception as e:
         print(f"Error sending request: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": f"Internal Lambda Error: {str(e)}"
-        }
+        # Re-raise instead of returning. SQS only checks whether the function crashed —
+        # a normal return (even with statusCode 500) counts as success and the message is
+        # deleted. Raising is what engages the redrive policy, so a transient API Gateway
+        # or DynamoDB failure gets retried and eventually lands in the DLQ instead of
+        # being silently lost.
+        raise
+
+        # Previous behaviour — swallowed the error, so SQS deleted the message:
+        # return {
+        #     "statusCode": 500,
+        #     "body": f"Internal Lambda Error: {str(e)}"
+        # }

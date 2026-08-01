@@ -148,7 +148,9 @@ Remote state lives in S3 (`aci-capstone1-remote-state`, `us-east-1`) with native
 
 - `envs/dev/terraform.tfstate`
 
-Configured in `envs/dev/backend.tf`. Do **not** commit local `.tfstate` files — `.gitignore` already excludes them. Note: `encrypt = true` is currently commented out.
+State is encrypted at rest: the backend sets `encrypt = true`, and the bucket itself has SSE-S3 (`AES256`) default encryption.
+
+Configured in `envs/dev/backend.tf`. Do **not** commit local `.tfstate` files — `.gitignore` already excludes them. Any change to the backend block needs `terraform init -reconfigure` before `plan`/`apply` will run.
 
 ## Variables
 

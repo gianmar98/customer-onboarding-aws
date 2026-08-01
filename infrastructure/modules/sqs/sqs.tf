@@ -6,13 +6,20 @@
 
 #Main SQS Queue
 resource "aws_sqs_queue" "license_queue" {
-  name                       = var.sqs_queue_name
-  visibility_timeout_seconds = 300
+  name = var.sqs_queue_name
+  # Must be >= 6x the consumer's function timeout (SubmitLicenseLambdaFunction, var.lambda_functions_timeout = 20s)
+  # so a slow invocation can't have its message redelivered while it's still being processed.
+  # Also sets the retry pacing below: a failing message waits this long between receives.
+  visibility_timeout_seconds = 120
   fifo_queue                 = false #standard Queue
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.license_dead_letter_queue.arn
-    maxReceiveCount     = 5
+    # 3 receives x 120s visibility = a bad message reaches the DLQ in ~4 min instead of ~20.
+    # Enough retries to ride out a transient API Gateway/DynamoDB blip, few enough that a
+    # genuinely bad application surfaces fast. Only reachable because submit_license.py
+    # re-raises on error - a Lambda that returns is a success and the message is deleted.
+    maxReceiveCount = 3
   })
 }
 

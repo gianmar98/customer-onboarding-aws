@@ -4,7 +4,7 @@ Provisions the `LicenseQueue` standard queue and its `LicenseDeadLetterQueue` de
 
 ## Resources
 
-- `aws_sqs_queue.license_queue` — standard queue (`fifo_queue = false`), `visibility_timeout_seconds = 300`, with a `redrive_policy` sending messages to the DLQ after `maxReceiveCount = 5` failed receives
+- `aws_sqs_queue.license_queue` — standard queue (`fifo_queue = false`), `visibility_timeout_seconds = 120`, with a `redrive_policy` sending messages to the DLQ after `maxReceiveCount = 3` failed receives
 - `aws_sqs_queue.license_dead_letter_queue` — standard DLQ (`fifo_queue = false`)
 - `aws_sqs_queue_redrive_allow_policy.terraform_queue_redrive_allow_policy` — scopes the DLQ to only accept redrives from `license_queue` (`redrivePermission = "byQueue"`)
 
@@ -27,5 +27,8 @@ Provisions the `LicenseQueue` standard queue and its `LicenseDeadLetterQueue` de
 ## Notes
 
 - Both queues are standard (not FIFO), matching the lab steps.
+- **The redrive policy only works because `submit_license.py` re-raises on error.** SQS treats *any* normal return as success and deletes the message — a handler that catches an exception and returns a 500 dict makes the DLQ unreachable. See `modules/lambda/README.md`.
+- **`visibility_timeout_seconds` does double duty**: it must be ≥ 6× the consumer's function timeout (`var.lambda_functions_timeout = 20s`) so a slow invocation can't have its message redelivered mid-processing, *and* it sets the retry spacing. At 120s × `maxReceiveCount = 3`, a persistently failing message reaches the DLQ in ~4 minutes. Raising either value directly lengthens that.
+- The DLQ has no CloudWatch alarm on `ApproximateNumberOfMessagesVisible`, so messages land there unnoticed — the top open item in `FABLEfeedback.md` §4.1.
 - The queue sits between the two Lambdas: the **document Lambda** writes to it (via the `sqs_url` output → its `SQS_URL` env var), and the **submit-license Lambda** polls it. The env wires `module.sqs.sqs_license_queue_arn` into `module.document_lambda`, where it scopes the submit-license SQS poll policy and is the `event_source_arn` of the event source mapping; `module.sqs.sqs_url` is wired in as the document Lambda's `SQS_URL`.
 - The module call in `envs/dev/main.tf` passes the queue names directly without the `${local.env_suffix}` the other modules use, so dev/prod would collide on queue names. Add the suffix before standing up a second env.
