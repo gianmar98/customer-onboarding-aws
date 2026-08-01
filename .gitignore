@@ -48,7 +48,9 @@ infrastructure/modules/lambda/build/
 
 #Test Zip for Lambda function
 TestZipUpload/*
-8d247914.zip
+# Root-scoped so the sample applicant zips are all covered without listing each;
+# does not affect the Lambda build zips (already ignored via the build/ dir above).
+/*.zip
 
 #Local test fixtures (sample events, payloads, scratch files)
 TESTS/
@@ -57,6 +59,12 @@ TESTS/
 response*.json
 
 *.pyc
+
+# macOS Finder metadata
+.DS_Store
+
+# JetBrains IDE config
+.idea/
 
 
 # aws s3 cp 8d247914.zip s3://documentbucket-aci1-dev/zipped/
