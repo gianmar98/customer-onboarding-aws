@@ -6,11 +6,12 @@ Provisions seven Lambda functions — the document-handling Lambda, the mock val
 
 > Resource names are env-stamped **before** they reach this module — `envs/dev/main.tf` appends `-${project_environment}` to each name input. The module itself is env-agnostic. (The validation Lambda names, and the unzip/write-to-dynamo/compare-faces/compare-details IAM role/policy names, are the exception — only their **function names** are env-suffixed; role and CloudWatch-policy names are passed in **without** the suffix.)
 >
-> This module declares its own `required_providers` block (`aws = "~> 6.4"`) at the top of `lambda_policies.tf` — keep it a range, not an exact pin, or it will conflict with the sibling modules' constraints during `terraform init`.
+> This module declares its own `required_providers` in `versions.tf` (`aws ~> 6.4`, `archive ~> 2.8` — it's the only module that zips deployment packages). Keep both as ranges, not exact pins, or they will conflict with the sibling modules' constraints during `terraform init`.
 
 ## Files
 
-- `lambda_policies.tf` — `required_providers`, IAM roles, inline policy (S3/DynamoDB/SNS), CloudWatch Logs policies + attachments, Rekognition policy + attachment, Textract policy + attachments, the submit-license SQS poll policy + attachment, and log groups for all seven Lambda functions.
+- `versions.tf` — `required_version` + `required_providers` (`aws`, `archive`).
+- `lambda_policies.tf` — IAM roles, inline policy (S3/DynamoDB/SNS), CloudWatch Logs policies + attachments, Rekognition policy + attachment, Textract policy + attachments, the submit-license SQS poll policy + attachment, and log groups for all seven Lambda functions.
 - `document_lambda_function.tf` — **entirely commented out.** Held the `archive_file`, the document Lambda function, its `lambda:InvokeFunction` permission for S3, and the (already-disabled) `aws_s3_bucket_notification`. Its two outputs in `outputs.tf` are commented out to match; the role, policies, and log group in `lambda_policies.tf` remain and are now orphaned.
 - `validate_lambda_function.tf` — `archive_file` packaging and the validation Lambda function (mock 3rd-party license validation).
 - `submit_license_lambda_function.tf` — `archive_file` packaging, the submit-license Lambda function, and the `aws_lambda_event_source_mapping` that wires `LicenseQueue` to it (`batch_size = 1`).
