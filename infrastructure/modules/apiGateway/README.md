@@ -28,7 +28,7 @@ Provisions `ValidateLicenseApi`, an HTTP API exposing `POST /license`, proxying 
 
 ## Cross-module dependencies
 
-`validate_lambda_invoke_arn` and `validate_lambda_function_name` come from the lambda module's outputs, routed through the env (`module.document_lambda.validation_lambda_invoke_arn` → `var.validate_lambda_invoke_arn`); this module's own outputs flow back into the lambda module for the submit-license Lambda's env vars. Names are **not** env-suffixed by the caller (unlike most other modules).
+`validate_lambda_invoke_arn` and `validate_lambda_function_name` come from the lambda module's outputs, routed through the env (`module.document_lambda.validation_lambda_invoke_arn` → `var.validate_lambda_invoke_arn`); this module's own outputs flow back into the lambda module for the submit-license Lambda's env vars. Names are env-suffixed by the caller, like every other module. The API name is the one suffix that isn't strictly required — API Gateway allows duplicate names — but it's applied anyway so there are no exceptions to explain, and unlike the IAM and SQS renames it's an in-place update, not a replacement.
 
 ## Notes
 

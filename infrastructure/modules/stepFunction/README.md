@@ -47,7 +47,7 @@ This module is what turns the unzip / write-to-dynamo / compare-faces / compare-
 | Name | Type | Description |
 |---|---|---|
 | `document_state_machine_name` | `string` | State machine name (env-suffixed by the caller). Also prefixes the EventBridge rule name. |
-| `document_state_machine_iam_role_name` | `string` | State machine IAM role name — **not** env-suffixed by the caller. Also prefixes the EventBridge role name (`-eventbridge`). |
+| `document_state_machine_iam_role_name` | `string` | State machine IAM role name (env-suffixed by the caller). Also prefixes the EventBridge role name, which lands as `<name>-<env>-eventbridge`. |
 | `current_account_id` | `string` | Account ID — declared, currently unused by the resources |
 | `current_region` | `string` | Region — declared, currently unused by the resources |
 | `unzip_lambda_function_arn` | `string` | Step 1 Lambda ARN — `Resource` of `UnzipLambdaFunction`, scoped in the invoke policy |

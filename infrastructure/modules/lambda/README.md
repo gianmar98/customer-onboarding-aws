@@ -4,7 +4,7 @@ Provisions seven Lambda functions — the document-handling Lambda, the mock val
 
 **Only one trigger lives in this module:** the SQS event source mapping for the submit-license Lambda. The four pipeline Lambdas are invoked by the `DocumentStateMachine` in `modules/stepFunction/`, which is also where the bucket's EventBridge notification lives. **`document_lambda_function.tf` is now commented out in full** — the monolithic function is no longer deployed at all (see Notes).
 
-> Resource names are env-stamped **before** they reach this module — `envs/dev/main.tf` appends `-${project_environment}` to each name input. The module itself is env-agnostic. (The validation Lambda names, and the unzip/write-to-dynamo/compare-faces/compare-details IAM role/policy names, are the exception — only their **function names** are env-suffixed; role and CloudWatch-policy names are passed in **without** the suffix.)
+> Resource names are env-stamped **before** they reach this module — `envs/dev/main.tf` appends `-${project_environment}` to **every** name input, with no exceptions. The module itself is env-agnostic and uses each name as-is.
 >
 > This module declares its own `required_providers` in `versions.tf` (`aws ~> 6.4`, `archive ~> 2.8` — it's the only module that zips deployment packages). Keep both as ranges, not exact pins, or they will conflict with the sibling modules' constraints during `terraform init`.
 
@@ -38,7 +38,7 @@ Provisions seven Lambda functions — the document-handling Lambda, the mock val
   - `sns:Publish` on `${sns_topic_arn}`
 - `aws_iam_policy.lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch: `CreateLogGroup` on `arn:aws:logs:<region>:<account>:*`; `CreateLogStream`/`PutLogEvents` scoped to `/aws/lambda/<function_name>:*`.
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_lambdaRole` — attaches the CW policy to the document Lambda role.
-- `aws_iam_policy.rekognition_face_comparison_policy` — **customer-managed** policy granting `rekognition:CompareFaces` on `*`. Name is **not** env-suffixed (passed directly as `var.lambda_rekognition_face_comparison_policy_name`).
+- `aws_iam_policy.rekognition_face_comparison_policy` — **customer-managed** policy granting `rekognition:CompareFaces` on `*`. Name is env-suffixed via `var.lambda_rekognition_face_comparison_policy_name`.
 - `aws_iam_role_policy_attachment.attach_rekognition_policy_to_lambda` — attaches the Rekognition policy to the document Lambda role.
 - `aws_iam_policy.textract_policy` — **customer-managed** policy granting `textract:AnalyzeID` on `*`. Name is env-suffixed via `var.lambda_textract_analyze_id_policy_name`.
 - `aws_iam_role_policy_attachment.attach_textract_to_lambda` — attaches the Textract policy to the document Lambda role.
@@ -49,8 +49,8 @@ Provisions seven Lambda functions — the document-handling Lambda, the mock val
 
 ### Validation Lambda
 
-- `aws_iam_role.validation_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"ValidationLambdaRole"`. **Not env-suffixed.**
-- `aws_iam_policy.validation_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy. **Not env-suffixed.**
+- `aws_iam_role.validation_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"ValidationLambdaRole"` (Sids stay unsuffixed — IAM requires them to be alphanumeric).
+- `aws_iam_policy.validation_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy.
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_validationLambdaRole` — attaches the CW policy to the validation Lambda role.
 - `aws_cloudwatch_log_group.validation_lambda_logs` — `/aws/lambda/<validate_lambda_function_name>`, 14-day retention.
 - `data.archive_file.validate_lambda_function_archive_file` — zips `src/validate_lambda.py` to `build/validate_lambda.zip`.
@@ -69,13 +69,13 @@ Provisions seven Lambda functions — the document-handling Lambda, the mock val
 - `aws_lambda_function.submit_license_lambda_function` — Python 3.13, handler `submit_license.lambda_handler`, wired to its log group via `logging_config`. Exposes `VALIDATE_LICENSE_API`, `VALIDATE_LICENSE_API_URL`, `TOPIC` (SNS topic ARN), and `TABLE` (DynamoDB table name) as runtime env vars.
 - `aws_lambda_event_source_mapping.sqs_trigger_submit_license_lambda` — polls `var.sqs_license_queue_arn` (the `LicenseQueue`) and invokes the function with `batch_size = 1`. Enabled by default.
 
-All submit-license names (function, role, CW policy, SQS policy) **are** env-suffixed by the caller, unlike the validation Lambda.
+All submit-license names (function, role, CW policy, SQS policy) are env-suffixed by the caller — as is every other name input to this module.
 
 ### Unzip Lambda
 
-- `aws_iam_role.unzip_license_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"UnzipLicenseLambdaRole"`. **Not env-suffixed** (only the function name is).
+- `aws_iam_role.unzip_license_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"UnzipLicenseLambdaRole"` (Sids stay unsuffixed — IAM requires them to be alphanumeric).
 - `aws_iam_role_policy.unzip_lambda_s3_policy` — **inline** policy granting `s3:GetObject`/`s3:PutObject` on `${document_s3_bucket_arn}/*`, plus `kms:Decrypt`/`kms:GenerateDataKey` on `${document_kms_key_arn}` (`KMSAccessPolicy`). The only pipeline role with `GenerateDataKey` — it's the only one that writes objects back.
-- `aws_iam_policy.unzip_license_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy. **Not env-suffixed.**
+- `aws_iam_policy.unzip_license_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy.
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_unzipLicenseLambdaRole` — attaches the CW policy to the unzip Lambda role.
 - `aws_cloudwatch_log_group.unzip_license_lambda_logs` — `/aws/lambda/<unzip_lambda_function_name>`, 14-day retention.
 - `data.archive_file.unzip_lambda_function_archive_file` — zips `src/unzip_lambda.py` to `build/unzip_lambda.zip`.
@@ -83,10 +83,10 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 
 ### Write-to-DynamoDB Lambda
 
-- `aws_iam_role.write_to_dynamo_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"WriteToDynamoLambdaRole"`. **Not env-suffixed** (only the function name is).
+- `aws_iam_role.write_to_dynamo_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"WriteToDynamoLambdaRole"` (Sids stay unsuffixed — IAM requires them to be alphanumeric).
 - `aws_iam_role_policy.write_to_dynamo_lambda_s3_policy` — **inline** policy granting `s3:GetObject` on `${document_s3_bucket_arn}/*` (downloads the details CSV only, never uploads), `kms:Decrypt` on `${document_kms_key_arn}`, and `dynamodb:PutItem`/`dynamodb:UpdateItem` on `${dynamodb_metadata_table_arn}`.
 - `aws_iam_role_policy.write_to_dynamo_xray_policy` — **inline** policy (`WriteToDynamoXRayTracingPolicy`) granting `xray:PutTraceSegments`/`PutTelemetryRecords`/`GetSamplingRules`/`GetSamplingTargets` on `*` (X-Ray has no resource-level permissions). Required by the tracing config below — see Notes.
-- `aws_iam_policy.write_to_dynamo_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy. **Not env-suffixed.**
+- `aws_iam_policy.write_to_dynamo_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy.
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_writeToDynamoLambdaRole` — attaches the CW policy to the write-to-dynamo Lambda role.
 - `aws_cloudwatch_log_group.write_to_dynamo_lambda_logs` — `/aws/lambda/<write_to_dynamo_lambda_function_name>`, 14-day retention.
 - `data.archive_file.write_to_dynamo_lambda_function_archive_file` — zips `src/write_to_dynamo_lambda.py` to `build/write_to_dynamo_lambda.zip`.
@@ -95,9 +95,9 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 
 ### Compare-Faces Lambda
 
-- `aws_iam_role.compare_faces_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"CompareFacesLambdaRole"`. **Not env-suffixed** (only the function name is).
+- `aws_iam_role.compare_faces_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"CompareFacesLambdaRole"` (Sids stay unsuffixed — IAM requires them to be alphanumeric).
 - `aws_iam_role_policy.compare_faces_lambda_policy` — **inline** policy granting `s3:GetObject`/`s3:PutObject`/`s3:DeleteObject` on `${document_s3_bucket_arn}/*`, `kms:Decrypt` on `${document_kms_key_arn}` (Rekognition reads the images with this role's credentials), `dynamodb:PutItem`/`dynamodb:UpdateItem` on `${dynamodb_metadata_table_arn}`, and `sns:Publish` on `${sns_topic_arn}`.
-- `aws_iam_policy.compare_faces_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy. **Not env-suffixed.**
+- `aws_iam_policy.compare_faces_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy.
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_compareFacesLambdaRole` — attaches the CW policy to the compare-faces Lambda role.
 - `aws_iam_role_policy_attachment.attach_rekognition_policy_to_compare_face_lambda` — attaches the shared `rekognition_face_comparison_policy` (same customer-managed policy the document Lambda uses) to the compare-faces Lambda role.
 - `aws_cloudwatch_log_group.compare_faces_lambda_logs` — `/aws/lambda/<compare_faces_lambda_function_name>`, 14-day retention.
@@ -106,9 +106,9 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 
 ### Compare-Details Lambda
 
-- `aws_iam_role.compare_details_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"CompareDetailsLambdaRole"`. **Not env-suffixed** (only the function name is).
+- `aws_iam_role.compare_details_lambda_role` — assume-role trust for `lambda.amazonaws.com`. Trust-policy `Sid` is the literal `"CompareDetailsLambdaRole"` (Sids stay unsuffixed — IAM requires them to be alphanumeric).
 - `aws_iam_role_policy.compare_details_lambda_policy` — **inline** policy granting `s3:GetObject` on `${document_s3_bucket_arn}/*` (reads the license image + details CSV only), `kms:Decrypt` on `${document_kms_key_arn}` (Textract reads the license image with this role's credentials), `dynamodb:UpdateItem` on `${dynamodb_metadata_table_arn}` (sets `LICENSE_DETAILS_MATCH`), and `sns:Publish` on `${sns_topic_arn}`. Scoped tighter than the compare-faces inline policy — no `PutObject`/`DeleteObject`/`PutItem`, since this handler only reads and updates.
-- `aws_iam_policy.compare_details_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy. **Not env-suffixed.**
+- `aws_iam_policy.compare_details_lambda_cloudwatch_logs_policy` — **customer-managed** least-privilege CloudWatch policy, same scope pattern as the document Lambda policy.
 - `aws_iam_role_policy_attachment.attach_CloudWatchPolicy_to_compareDetailsLambdaRole` — attaches the CW policy to the compare-details Lambda role.
 - `aws_iam_role_policy_attachment.attach_textract_to_compare_details_lambda` — attaches the shared `textract_policy` (`textract:AnalyzeID`, same customer-managed policy the document Lambda uses) to the compare-details Lambda role.
 - `aws_cloudwatch_log_group.compare_details_lambda_logs` — `/aws/lambda/<compare_details_lambda_function_name>`, 14-day retention.
@@ -125,9 +125,9 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 | `document_lambda_function_name` | `string` | Full document Lambda function name (env-suffixed). The function itself is commented out, but this still drives the log group name and CW policy ARN scope — keep it wired. |
 | `project_name` | `string` | Project name, used as `POWERTOOLS_SERVICE_NAME` (the X-Ray service label). Same variable that feeds the env's `default_tags`. **Not** env-suffixed — dev and prod would share one service node. |
 | `lambda_functions_timeout` | `number` | Max execution time in seconds, shared by all Lambda functions in this module |
-| `validate_lambda_function_name` | `string` | Validation Lambda function name — **not** env-suffixed by the caller |
-| `validate_lambda_role_name` | `string` | Validation Lambda IAM role name — **not** env-suffixed by the caller |
-| `validation_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the validation Lambda — **not** env-suffixed by the caller |
+| `validate_lambda_function_name` | `string` | Validation Lambda function name (env-suffixed) |
+| `validate_lambda_role_name` | `string` | Validation Lambda IAM role name (env-suffixed) |
+| `validation_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the validation Lambda (env-suffixed) |
 | `current_region` | `string` | Region used to build region-scoped log ARNs (env passes `data.aws_region`) |
 | `current_account_id` | `string` | Account ID used to build account-scoped log ARNs (env passes `data.aws_caller_identity`) |
 | `document_s3_bucket_arn` | `string` | Bucket ARN — used in the inline S3 policy and as `source_arn` on the invoke permission |
@@ -137,7 +137,7 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 | `dynamodb_document_table_name` | `string` | DynamoDB table **name** — passed to the document Lambda as the `TABLE` environment variable |
 | `sns_topic_arn` | `string` | SNS topic ARN — scoped in the inline policy and used as the `TOPIC` env variable |
 | `sns_topic_name` | `string` | SNS topic name — passed in but unused at runtime |
-| `lambda_rekognition_face_comparison_policy_name` | `string` | Rekognition managed policy name — **not** env-suffixed by the caller |
+| `lambda_rekognition_face_comparison_policy_name` | `string` | Rekognition managed policy name (env-suffixed) |
 | `lambda_textract_analyze_id_policy_name` | `string` | Textract managed policy name (env-suffixed by the caller) |
 | `validate_license_api_execution_arn` | `string` | execute-api ARN of the validation API — scopes `execute-api:Invoke` for the submit-license role. Comes from `module.api_gateway.validate_license_api_execution_arn`; **not** the API's plain `arn`. |
 | `execute_api_submit_license_policy_name` | `string` | Name of the `execute-api:Invoke` managed policy (env-suffixed; hardcoded in `envs/dev/main.tf` rather than tfvars). |
@@ -151,19 +151,19 @@ All submit-license names (function, role, CW policy, SQS policy) **are** env-suf
 | `validate_license_api_name` | `string` | API Gateway API name — passed to the submit-license Lambda as the `VALIDATE_LICENSE_API` environment variable |
 | `validate_license_api_url` | `string` | API Gateway invoke URL (`POST /license`) — passed to the submit-license Lambda as the `VALIDATE_LICENSE_API_URL` environment variable, used to call the third-party validation endpoint |
 | `unzip_lambda_function_name` | `string` | Unzip Lambda function name (env-suffixed by the caller). Also drives its log group name and CW policy ARN scope. |
-| `unzip_lambda_function_role_name` | `string` | Unzip Lambda IAM role name — **not** env-suffixed by the caller |
-| `unzip_license_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the unzip Lambda — **not** env-suffixed by the caller |
+| `unzip_lambda_function_role_name` | `string` | Unzip Lambda IAM role name (env-suffixed) |
+| `unzip_license_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the unzip Lambda (env-suffixed) |
 | `write_to_dynamo_lambda_function_name` | `string` | Write-to-DynamoDB Lambda function name (env-suffixed by the caller). Also drives its log group name and CW policy ARN scope. |
-| `write_to_dynamo_lambda_function_role_name` | `string` | Write-to-DynamoDB Lambda IAM role name — **not** env-suffixed by the caller |
-| `write_to_dynamo_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the write-to-DynamoDB Lambda — **not** env-suffixed by the caller |
+| `write_to_dynamo_lambda_function_role_name` | `string` | Write-to-DynamoDB Lambda IAM role name (env-suffixed) |
+| `write_to_dynamo_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the write-to-DynamoDB Lambda (env-suffixed) |
 | `compare_faces_lambda_function_name` | `string` | Compare-faces Lambda function name (env-suffixed by the caller). Also drives its log group name and CW policy ARN scope. |
-| `compare_faces_lambda_function_role_name` | `string` | Compare-faces Lambda IAM role name — **not** env-suffixed by the caller |
-| `compare_faces_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the compare-faces Lambda — **not** env-suffixed by the caller |
-| `compare_faces_lambda_policy_name` | `string` | Full inline policy name for the compare-faces Lambda — **not** env-suffixed by the caller |
+| `compare_faces_lambda_function_role_name` | `string` | Compare-faces Lambda IAM role name (env-suffixed) |
+| `compare_faces_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the compare-faces Lambda (env-suffixed) |
+| `compare_faces_lambda_policy_name` | `string` | Full inline policy name for the compare-faces Lambda (env-suffixed) |
 | `compare_details_lambda_function_name` | `string` | Compare-details Lambda function name (env-suffixed by the caller). Also drives its log group name and CW policy ARN scope. |
-| `compare_details_lambda_function_role_name` | `string` | Compare-details Lambda IAM role name — **not** env-suffixed by the caller |
-| `compare_details_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the compare-details Lambda — **not** env-suffixed by the caller |
-| `compare_details_lambda_policy_name` | `string` | Full inline policy name for the compare-details Lambda — **not** env-suffixed by the caller |
+| `compare_details_lambda_function_role_name` | `string` | Compare-details Lambda IAM role name (env-suffixed) |
+| `compare_details_lambda_cloudwatch_logs_policy_name` | `string` | CloudWatch Logs policy name for the compare-details Lambda (env-suffixed) |
+| `compare_details_lambda_policy_name` | `string` | Full inline policy name for the compare-details Lambda (env-suffixed) |
 
 ## Outputs
 

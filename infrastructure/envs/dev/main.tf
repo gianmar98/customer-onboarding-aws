@@ -75,33 +75,33 @@ module "document_lambda" {
   sqs_url                            = module.sqs.sqs_url
   #Validate Lambda
   validate_lambda_function_name                 = "${var.validate_lambda_function_name}${local.env_suffix}"
-  validate_lambda_role_name                     = var.validate_lambda_role_name
-  validation_lambda_cloudwatch_logs_policy_name = var.validation_lambda_cloudwatch_logs_policy_name
+  validate_lambda_role_name                     = "${var.validate_lambda_role_name}${local.env_suffix}"
+  validation_lambda_cloudwatch_logs_policy_name = "${var.validation_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
   #Submit License Lambda
   submit_license_lambda_function_name               = "${var.submit_license_lambda_function_name}${local.env_suffix}"
   submit_license_lambda_role_name                   = "${var.submit_license_lambda_role_name}${local.env_suffix}"
   submit_license_lambda_cloudwatch_logs_policy_name = "${var.submit_license_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
-  submit_license_lambda_policy_name                 = var.submit_license_lambda_policy_name
+  submit_license_lambda_policy_name                 = "${var.submit_license_lambda_policy_name}${local.env_suffix}"
 
   # ------- STEP FUNCTIONS LAMBDAS -------
   #Unzip License lambda
   unzip_lambda_function_name                       = "${var.unzip_lambda_function_name}${local.env_suffix}"
-  unzip_lambda_function_role_name                  = var.unzip_lambda_function_role_name
-  unzip_license_lambda_cloudwatch_logs_policy_name = var.unzip_license_lambda_cloudwatch_logs_policy_name
+  unzip_lambda_function_role_name                  = "${var.unzip_lambda_function_role_name}${local.env_suffix}"
+  unzip_license_lambda_cloudwatch_logs_policy_name = "${var.unzip_license_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
   #Write to Dynamo Lambda
   write_to_dynamo_lambda_function_name               = "${var.write_to_dynamo_lambda_function_name}${local.env_suffix}"
-  write_to_dynamo_lambda_function_role_name          = var.write_to_dynamo_lambda_function_role_name
-  write_to_dynamo_lambda_cloudwatch_logs_policy_name = var.write_to_dynamo_lambda_cloudwatch_logs_policy_name
+  write_to_dynamo_lambda_function_role_name          = "${var.write_to_dynamo_lambda_function_role_name}${local.env_suffix}"
+  write_to_dynamo_lambda_cloudwatch_logs_policy_name = "${var.write_to_dynamo_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
   #Compare Faces Lambda
   compare_faces_lambda_function_name               = "${var.compare_faces_lambda_function_name}${local.env_suffix}"
-  compare_faces_lambda_function_role_name          = var.compare_faces_lambda_function_role_name
-  compare_faces_lambda_cloudwatch_logs_policy_name = var.compare_faces_lambda_cloudwatch_logs_policy_name
-  compare_faces_lambda_policy_name                 = var.compare_faces_lambda_policy_name
+  compare_faces_lambda_function_role_name          = "${var.compare_faces_lambda_function_role_name}${local.env_suffix}"
+  compare_faces_lambda_cloudwatch_logs_policy_name = "${var.compare_faces_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
+  compare_faces_lambda_policy_name                 = "${var.compare_faces_lambda_policy_name}${local.env_suffix}"
   #Compare Details Lambda
   compare_details_lambda_function_name               = "${var.compare_details_lambda_function_name}${local.env_suffix}"
-  compare_details_lambda_function_role_name          = var.compare_details_lambda_function_role_name
-  compare_details_lambda_cloudwatch_logs_policy_name = var.compare_details_lambda_cloudwatch_logs_policy_name
-  compare_details_lambda_policy_name                 = var.compare_details_lambda_policy_name
+  compare_details_lambda_function_role_name          = "${var.compare_details_lambda_function_role_name}${local.env_suffix}"
+  compare_details_lambda_cloudwatch_logs_policy_name = "${var.compare_details_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
+  compare_details_lambda_policy_name                 = "${var.compare_details_lambda_policy_name}${local.env_suffix}"
 
   #External
   document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn
@@ -109,8 +109,8 @@ module "document_lambda" {
   document_kms_key_arn                           = module.document_s3_bucket.document_kms_key_arn
   dynamodb_document_table_name                   = module.customer_metadata_dynamo_db_table.customer_metadata_table_name
   dynamodb_metadata_table_arn                    = module.customer_metadata_dynamo_db_table.customer_metadata_table_arn
-  lambda_rekognition_face_comparison_policy_name = var.lambda_rekognition_face_comparison_policy_name
-  lambda_textract_analyze_id_policy_name         = var.lambda_textract_analyze_id_policy_name
+  lambda_rekognition_face_comparison_policy_name = "${var.lambda_rekognition_face_comparison_policy_name}${local.env_suffix}"
+  lambda_textract_analyze_id_policy_name         = "${var.lambda_textract_analyze_id_policy_name}${local.env_suffix}"
   sns_topic_arn                                  = module.app_notification_sns.sns_topic_arn
   sns_topic_name                                 = module.app_notification_sns.sns_topic_name
   sqs_license_queue_arn                          = module.sqs.sqs_license_queue_arn
@@ -125,7 +125,7 @@ module "document_lambda" {
 
 module "api_gateway" {
   source               = "../../modules/apiGateway"
-  validate_api_gw_name = var.validate_api_gw_name
+  validate_api_gw_name = "${var.validate_api_gw_name}${local.env_suffix}"
 
   #External
   validate_lambda_function_name = "${var.validate_lambda_function_name}${local.env_suffix}"
@@ -134,8 +134,8 @@ module "api_gateway" {
 
 module "sqs" {
   source         = "../../modules/sqs"
-  sqs_queue_name = var.sqs_queue_name
-  sqs_dlq_name   = var.sqs_dlq_name
+  sqs_queue_name = "${var.sqs_queue_name}${local.env_suffix}"
+  sqs_dlq_name   = "${var.sqs_dlq_name}${local.env_suffix}"
 }
 
 module "step_function" {
@@ -145,7 +145,7 @@ module "step_function" {
 
 
   document_state_machine_name          = "${var.document_state_machine_name}${local.env_suffix}"
-  document_state_machine_iam_role_name = var.document_state_machine_iam_role_name
+  document_state_machine_iam_role_name = "${var.document_state_machine_iam_role_name}${local.env_suffix}"
 
   unzip_lambda_function_arn            = module.document_lambda.unzip_lambda_function_arn
   unzip_lambda_function_name           = module.document_lambda.unzip_lambda_function_name
