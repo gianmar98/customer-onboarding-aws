@@ -12,15 +12,15 @@ output "document_lambda_role_name" {
   value       = aws_iam_role.document_lambda_role.name
 }
 
-output "document_lambda_function_arn" {
-  description = "This is the ARN of the document Lambda Function"
-  value       = aws_lambda_function.document_lambda_function.arn
-}
-
-output "document_lambda_function_name" {
-  description = "This is the name of the document Lambda Function"
-  value       = aws_lambda_function.document_lambda_function.function_name
-}
+# output "document_lambda_function_arn" {
+#   description = "This is the ARN of the document Lambda Function"
+#   value       = aws_lambda_function.document_lambda_function.arn
+# }
+#
+# output "document_lambda_function_name" {
+#   description = "This is the name of the document Lambda Function"
+#   value       = aws_lambda_function.document_lambda_function.function_name
+# }
 
 output "validation_lambda_invoke_arn" {
   description = "Invoke ARN of the validation Lambda function"
