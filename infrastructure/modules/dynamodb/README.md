@@ -9,6 +9,7 @@ Provisions the `CustomerMetadataTable` DynamoDB table with provisioned capacity 
   - Partition key: `APP_UUID` (String)
   - Autoscaling cooldowns: 50s scale-in, 40s scale-out
   - Read and write autoscaling share the same min/max/target values
+  - Point-in-time recovery and deletion protection are both env-controlled (see Inputs)
 
 ## Inputs
 
@@ -20,6 +21,8 @@ Provisions the `CustomerMetadataTable` DynamoDB table with provisioned capacity 
 | `customer_metadata_table_RCU` | `number` | Min 2 |
 | `customer_metadata_table_WCU` | `number` | Min 2 |
 | `customer_metadata_table_autoscaling_enabled` | `bool` | See warning below |
+| `customer_metadata_table_pitr_enabled` | `bool` | Point-in-time recovery. `true` in dev. Toggling it is an in-place update — no recreation. |
+| `customer_metadata_table_deletion_protection` | `bool` | Blocks `DeleteTable`. `false` in dev so `terraform destroy` still works; set `true` in prod. |
 | `customer_metadata_table_min_RWcapacity` | `number` | Min 2 |
 | `customer_metadata_table_max_RWcapacity` | `number` | Max 20 |
 | `customer_metadata_table_target_scaling_val` | `number` | Target % (1–100) |
@@ -42,3 +45,8 @@ terraform state mv \
 ```
 
 (Adjust source/destination addresses based on the direction of the toggle — the upstream module changes the resource name when autoscaling is enabled vs. disabled.)
+
+## Notes
+
+- **PITR restores never overwrite this table.** `RestoreTableToPointInTime` always creates a *new* table, and it does not carry over autoscaling, tags, or the env-suffixed name — recovery means restoring to a temp table and moving the items back, not a one-command undo.
+- **Deletion protection blocks `terraform destroy`, not just the console.** With it `true`, destroy fails on this table until the flag is set back to `false` and applied. That's the point, but it means tearing down an env is two applies.

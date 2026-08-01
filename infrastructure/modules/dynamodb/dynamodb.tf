@@ -21,7 +21,12 @@ module "customer_metadata_table" {
   read_capacity  = var.customer_metadata_table_RCU
   write_capacity = var.customer_metadata_table_WCU
 
+  # The table holds applicant PII. PITR keeps a continuous rolling backup, so a bad write or an
+  # accidental DeleteItem is recoverable - restores go to a NEW table, never over this one.
+  point_in_time_recovery_enabled = var.customer_metadata_table_pitr_enabled
 
+  # Blocks DeleteTable at the API level, so terraform destroy fails instead of dropping the table.
+  deletion_protection_enabled = var.customer_metadata_table_deletion_protection
 
   autoscaling_enabled = var.customer_metadata_table_autoscaling_enabled
 

@@ -40,6 +40,16 @@ variable "customer_metadata_table_WCU" {
   }
 }
 
+variable "customer_metadata_table_pitr_enabled" {
+  description = "Enable point-in-time recovery (continuous rolling backup) on the customer metadata table"
+  type        = bool
+}
+
+variable "customer_metadata_table_deletion_protection" {
+  description = "Block DeleteTable on the customer metadata table. When true, terraform destroy fails on this table until it is set back to false and applied."
+  type        = bool
+}
+
 variable "customer_metadata_table_autoscaling_enabled" {
   description = "Enable autoscaling on the customer metadata table"
   type        = bool

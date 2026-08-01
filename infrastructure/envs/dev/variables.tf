@@ -214,6 +214,16 @@ variable "customer_metadata_table_autoscaling_enabled" {
   type        = bool
 }
 
+variable "customer_metadata_table_pitr_enabled" {
+  description = "Enable point-in-time recovery on the customer metadata table"
+  type        = bool
+}
+
+variable "customer_metadata_table_deletion_protection" {
+  description = "Block DeleteTable on the customer metadata table"
+  type        = bool
+}
+
 variable "customer_metadata_table_min_RWcapacity" {
   description = "Minimum autoscaling capacity"
   type        = number

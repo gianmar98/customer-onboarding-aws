@@ -42,6 +42,8 @@ module "customer_metadata_dynamo_db_table" {
   customer_metadata_table_RCU                 = var.customer_metadata_table_RCU
   customer_metadata_table_WCU                 = var.customer_metadata_table_WCU
   customer_metadata_table_autoscaling_enabled = var.customer_metadata_table_autoscaling_enabled
+  customer_metadata_table_pitr_enabled        = var.customer_metadata_table_pitr_enabled
+  customer_metadata_table_deletion_protection = var.customer_metadata_table_deletion_protection
   customer_metadata_table_hash_partition_key  = var.customer_metadata_table_hash_partition_key
   customer_metadata_table_max_RWcapacity      = var.customer_metadata_table_max_RWcapacity
   customer_metadata_table_min_RWcapacity      = var.customer_metadata_table_min_RWcapacity
