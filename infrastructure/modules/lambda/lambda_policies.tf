@@ -309,6 +309,29 @@ resource "aws_iam_role_policy_attachment" "attach_AmazonSQSFullAccess" {
   role       = aws_iam_role.submit_license_lambda_role.name
   policy_arn = aws_iam_policy.sqs_submit_license_policy.arn
 }
+# MANAGED EXECUTE-API POLICY
+# The POST /license route is authorization_type = "AWS_IAM", so the SigV4 signature in
+# submit_license.py is only accepted if the signing role also holds execute-api:Invoke.
+# Scoped to this one method+path: the wildcard is the stage name ($default).
+resource "aws_iam_policy" "execute_api_submit_license_policy" {
+  name = var.execute_api_submit_license_policy_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "AllowSubmitLambdaFunctionInvokeValidationApi"
+        Effect   = "Allow"
+        Action   = ["execute-api:Invoke"]
+        Resource = "${var.validate_license_api_execution_arn}/*/POST/license"
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_execute_api_policy_to_submit_license_role" {
+  role       = aws_iam_role.submit_license_lambda_role.name
+  policy_arn = aws_iam_policy.execute_api_submit_license_policy.arn
+}
 #INLINE S3 & DYNAMODB POLICY
 resource "aws_iam_role_policy" "submit_license_lambda_policy" { # what the identity is allowed to do
   role = aws_iam_role.submit_license_lambda_role.id

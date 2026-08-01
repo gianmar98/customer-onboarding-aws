@@ -113,6 +113,10 @@ module "document_lambda" {
   sqs_submit_license_policy_name                 = "${var.sqs_submit_license_policy_name}${local.env_suffix}"
   validate_license_api_name                      = module.api_gateway.validate_license_api_name
   validate_license_api_url                       = module.api_gateway.license_validation_invoke_url
+  validate_license_api_execution_arn             = module.api_gateway.validate_license_api_execution_arn
+  # Hardcoded rather than routed through tfvars: the base name is identical in every env
+  # (the suffix is what keeps the account-global managed policy name unique).
+  execute_api_submit_license_policy_name = "ExecuteApiInvokeValidationApiPolicy${local.env_suffix}"
 }
 
 module "api_gateway" {

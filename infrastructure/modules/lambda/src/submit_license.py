@@ -2,6 +2,9 @@ import json
 import boto3
 import os
 import urllib3
+# botocore ships with boto3 in the Lambda runtime, so SigV4 signing needs no extra package.
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
 
 #DynamoDB
 dynamodb = boto3.resource('dynamodb')
@@ -11,6 +14,27 @@ table = dynamodb.Table(os.environ['TABLE'])# add ENV variable TABLE
 # Pull the specific API Gateway Invoke URL from Environment Variables
 http = urllib3.PoolManager()
 api_url = os.environ['VALIDATE_LICENSE_API_URL']
+
+# The POST /license route is authorization_type = "AWS_IAM", so an unsigned request gets a
+# 403 before it ever reaches the validation Lambda. These are the execution role's creds;
+# get_credentials() returns a refreshable object, so it stays valid across warm invocations.
+session = boto3.Session()
+credentials = session.get_credentials()
+signing_region = session.region_name
+
+
+def sign_request(url, body):
+    "SigV4-sign a POST to the validation API and return the headers to send with it."
+    request = AWSRequest(
+        method="POST",
+        url=url,
+        data=body,
+        headers={"Content-Type": "application/json"}
+    )
+    # 'execute-api' is the signing name for API Gateway. The signature covers the body, so
+    # the exact same bytes passed here must be the ones sent on the wire.
+    SigV4Auth(credentials, "execute-api", signing_region).add_auth(request)
+    return dict(request.headers)
 
 #SNS
 sns = boto3.client('sns')
@@ -38,17 +62,17 @@ def lambda_handler(event, context):
         "uuid": uuid
     }
     print(f'Payload => {payload}')
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-Key": "your-api-key-if-required"
-    }
+    # Serialise once: the signature is computed over these exact bytes, so re-encoding
+    # between signing and sending would invalidate it.
+    encoded_payload = json.dumps(payload)
+    headers = sign_request(api_url, encoded_payload)
 
     try:
         # Send the POST request (change to 'GET', 'PUT', etc., as needed)
         response = http.request(
             "POST",
             api_url,
-            body=json.dumps(payload),
+            body=encoded_payload,
             headers=headers,
             timeout=5.0  # Timeout in seconds
         )

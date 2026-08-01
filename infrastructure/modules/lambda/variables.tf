@@ -196,5 +196,15 @@ variable "validate_license_api_url" {
   type        = string
 }
 
+variable "validate_license_api_execution_arn" {
+  description = "execute-api ARN of the validation API — scopes execute-api:Invoke for the submit-license role"
+  type        = string
+}
+
+variable "execute_api_submit_license_policy_name" {
+  description = "Name of the managed policy granting the submit-license Lambda execute-api:Invoke on POST /license"
+  type        = string
+}
+
 
 

@@ -7,7 +7,7 @@ Provisions `ValidateLicenseApi`, an HTTP API exposing `POST /license`, proxying 
 - `aws_apigatewayv2_api.validate_license_api` — HTTP API (`protocol_type = "HTTP"`). HTTP APIs are always Regional (no edge-optimized/private choice like REST APIs).
 - `aws_apigatewayv2_integration.validation_integration` — `AWS_PROXY` integration, `payload_format_version = "2.0"`, targeting `var.validate_lambda_invoke_arn` (the validation Lambda's invoke ARN, passed in from the lambda module via the env).
 - `aws_apigatewayv2_route.post_license` — routes `POST /license` to the integration.
-- `aws_apigatewayv2_stage.default` — the `$default` stage, `auto_deploy = true` (changes go live immediately, no manual deployment step).
+- `aws_apigatewayv2_stage.default` — the `$default` stage, `auto_deploy = true` (changes go live immediately, no manual deployment step). `default_route_settings` caps throughput at `throttling_rate_limit = 5` req/s with `throttling_burst_limit = 10` — the route has no authorizer, so this is what bounds the cost of an open endpoint.
 - `aws_lambda_permission.apigw_invoke_validate` — grants `apigateway.amazonaws.com` permission to invoke the validation Lambda, scoped to `${execution_arn}/*/*` (`statement_id = "AllowAPIGatewayInvoke"`).
 
 ## Inputs
@@ -33,4 +33,18 @@ Provisions `ValidateLicenseApi`, an HTTP API exposing `POST /license`, proxying 
 ## Notes
 
 - This is the **internal mock 3rd-party validator**, called server-side by `submit_license.py` — not a browser-facing API. The frontend never calls it directly.
-- Test invoke: `curl -X POST -H 'Content-Type: application/json' -d '{"driver_license_id": "S123456579010", "validation_override": "True"}' $API_ENDPOINT_URL`
+- **`POST /license` requires IAM auth** (`authorization_type = "AWS_IAM"`). An unsigned request gets `403` before the integration runs, so the `curl` command above no longer works as written — it needs `--aws-sigv4`. The only caller is `submit_license.py`, which SigV4-signs via `botocore.auth.SigV4Auth`.
+- **Three things must agree or every call 403s**: the route's `authorization_type`, the `execute-api:Invoke` grant on the caller's role (`modules/lambda/lambda_policies.tf`, scoped to `${execution_arn}/*/POST/license`), and the signature itself. Scope the grant against `execution_arn` — the API's plain `arn` is a different ARN and will not work.
+- Stage throttling (5 req/s, burst 10) is still there as defence in depth.
+- Test invoke (must be signed — a plain `curl` returns `403 Missing Authentication Token`):
+
+  ```bash
+  curl -X POST "$API_ENDPOINT_URL" \
+    --aws-sigv4 "aws:amz:us-east-1:execute-api" \
+    --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY" \
+    -H "x-amz-security-token: $AWS_SESSION_TOKEN" \
+    -H 'Content-Type: application/json' \
+    -d '{"driver_license_id": "S123456579010", "validation_override": true}'
+  ```
+
+  The `x-amz-security-token` header is only needed for temporary credentials. Your own IAM identity needs `execute-api:Invoke` too — the policy in `modules/lambda/` grants it to the submit-license role only.
