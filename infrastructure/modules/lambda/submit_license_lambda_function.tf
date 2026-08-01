@@ -39,13 +39,11 @@ resource "aws_lambda_event_source_mapping" "sqs_trigger_submit_license_lambda" {
   event_source_arn = var.sqs_license_queue_arn
   function_name    = aws_lambda_function.submit_license_lambda_function.arn
   batch_size       = 1
-
-  # scaling_config {
-  #   maximum_concurrency = 100
-  # }
 }
 
 
+# Reference only — the retired monolithic document Lambda's S3 trigger.
+# Do not uncomment: modules/stepFunction/ owns the bucket's only notification config.
 # resource "aws_s3_bucket_notification" "document_bucket_notification" {
 #   bucket = var.document_s3_bucket_name
 #
