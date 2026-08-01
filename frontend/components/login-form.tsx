@@ -71,7 +71,7 @@ export function LoginForm({
   const handleLogin = () =>
       run(async () => {
         // await signIn({username: email, password}); // <- real Cognito call, restore once Cognito is deployed
-        if (email !== "demo@example.com" || password !== "123") { // <- synthetic authentication happens here
+        if (email !== "giancusm@gmail.com" || password !== "123") { // <- synthetic authentication happens here
           throw new Error("Invalid credentials");
 
         }

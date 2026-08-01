@@ -1,7 +1,7 @@
-# aws sqs get-queue-url --queue-name LicenseQueue --output text
-
-# aws sqs send-message --queue-url $QueueUrl --message-body '{"driver_license_id": "S123456579010", "validation_override": true, "uuid": "8d247914"}'
-# aws sqs send-message --queue-url https://sqs.us-east-1.amazonaws.com/<account-id>/LicenseQueue --message-body '{"driver_license_id": "S123456579010", "validation_override": true, "uuid": "8d247914"}'
+# Send a test message. Resolve the URL first rather than pasting it - a literal queue URL
+# embeds the account ID, which then has to be edited by hand in any other account.
+#   QueueUrl=$(aws sqs get-queue-url --queue-name LicenseQueue-dev --output text)
+#   aws sqs send-message --queue-url $QueueUrl --message-body '{"driver_license_id": "S123456579010", "validation_override": true, "uuid": "8d247914"}'
 
 
 #Main SQS Queue
@@ -12,6 +12,10 @@ resource "aws_sqs_queue" "license_queue" {
   # Also sets the retry pacing below: a failing message waits this long between receives.
   visibility_timeout_seconds = 120
   fifo_queue                 = false #standard Queue
+
+  # AWS's default already, so this is a no-op. Stated because the attribute is Optional+Computed:
+  # left unset, Terraform would never flag encryption being turned off outside Terraform.
+  sqs_managed_sse_enabled = true
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.license_dead_letter_queue.arn
@@ -29,6 +33,8 @@ resource "aws_sqs_queue" "license_dead_letter_queue" {
   name       = var.sqs_dlq_name
   fifo_queue = false #standard Queue
 
+  # Same reasoning as the main queue - failed messages sit here longest, so it matters more here.
+  sqs_managed_sse_enabled = true
 }
 
 resource "aws_sqs_queue_redrive_allow_policy" "terraform_queue_redrive_allow_policy" {
