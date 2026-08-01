@@ -150,6 +150,10 @@ variable "document_s3_bucket_name" {
   description = "Name of the document S3 Bucket will be reacting to"
   type        = string
 }
+variable "document_kms_key_arn" {
+  description = "ARN of the CMK encrypting the document bucket — s3:GetObject/PutObject alone is not enough once the bucket uses SSE-KMS"
+  type        = string
+}
 # DYNAMODB
 variable "dynamodb_metadata_table_arn" {
   description = "ARN of the dynamoDB metadata table that Lambda needs to access to"

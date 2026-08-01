@@ -147,7 +147,10 @@ resource "aws_cloudwatch_event_rule" "zipped_object_created" {
         name = [var.document_s3_bucket_name]
       }
       object = {
-        key = [{ prefix = "zipped/" }]
+        # One wildcard matcher, not [{prefix = "zipped/"}, {suffix = ".zip"}] - EventBridge
+        # ORs the elements of a matcher array, so that form would BROADEN the filter to
+        # "anything under zipped/ OR any .zip anywhere" rather than narrowing it.
+        key = [{ wildcard = "zipped/*.zip" }]
       }
     }
   })

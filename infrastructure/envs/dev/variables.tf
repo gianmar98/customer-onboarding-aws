@@ -28,6 +28,11 @@ variable "document_s3_bucket_name" {
   type        = string
 }
 
+variable "document_retention_days" {
+  description = "Days after upload that identity documents (zipped/ and unzipped/) are expired"
+  type        = number
+}
+
 
 # Lambda -------------------------------------------------------------------------
 variable "document_lambda_role_name" {

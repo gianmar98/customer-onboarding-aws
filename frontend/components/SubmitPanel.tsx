@@ -12,6 +12,13 @@ import MrzStrip from "@/components/MrzStrip";
 //     onSignOut: () => void;
 // }
 
+// Mirrors MAX_ZIP_BYTES in unzip_lambda.py — the archive is rejected server-side above this.
+// ponytail: checked against the raw image bytes, not the built zip. PNG/JPEG barely deflate,
+// so raw total >= zip size, and staying under 20MB also clears the 50MB uncompressed limit.
+// This is UX only — the real guard is the Lambda; the presigned URL is the trust boundary.
+const MAX_ZIP_BYTES = 20 * 1024 * 1024;
+const mb = (b: number) => (b / 1024 / 1024).toFixed(1);
+
 //Realistic Mock data
 const MOCK: LicenseDetails = {
   FIRST_NAME: "Giancarlo",
@@ -69,6 +76,10 @@ export default function SubmitPanel(){
   // uuid starts null, when user uploads file, app gets back real uuid and changes from null -> str.
   //  since the dependency changed, re runs the effect which kicks off the polling loop for that specific upload
   //  if it changed later, it will re run new polling loop
+
+  //Total bytes of the two picked images ~= the zip we're about to PUT
+  const totalBytes = (license?.size ?? 0) + (selfie?.size ?? 0);
+  const tooBig = totalBytes > MAX_ZIP_BYTES;
 
   async function handleSubmit(){
     if (!license || !selfie){
@@ -137,6 +148,14 @@ export default function SubmitPanel(){
         </div>
 
         {
+          tooBig && (
+              <p className={"mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"} role="alert">
+                Images total {mb(totalBytes)} MB — the limit is {mb(MAX_ZIP_BYTES)} MB. Pick smaller files.
+              </p>
+            )
+        }
+
+        {
           error && (
               <p className={"mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"}>{error}</p>
             )
@@ -144,7 +163,7 @@ export default function SubmitPanel(){
 
         <button
           onClick={handleSubmit}
-          disabled={busy}
+          disabled={busy || tooBig}
           className={"mt-5 w-full bg-thread-strong rounded-md px-4 py-2.5 font-medium text-white hover:bg-ink disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-thread focus-visible:ring-offset-1"}
         >
           {busy ? "Uploading...": `Submit for verification`}

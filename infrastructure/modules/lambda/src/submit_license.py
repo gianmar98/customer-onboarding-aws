@@ -77,6 +77,15 @@ def lambda_handler(event, context):
             timeout=5.0  # Timeout in seconds
         )
 
+        # An API Gateway error body is still valid JSON ({"message": "Forbidden"} on a 403),
+        # so parsing without checking the status silently writes that dict into
+        # LICENSE_VALIDATION instead of the true/false the validator returns. Raising is what
+        # gets the message retried - the except below re-raises it to SQS.
+        if response.status != 200:
+            raise RuntimeError(
+                f"Validation API returned {response.status}: {response.data.decode('utf-8')}"
+            )
+
         # Parse and return the response data
         response_data = json.loads(response.data.decode("utf-8"))
         print(f'Response => {response_data}')

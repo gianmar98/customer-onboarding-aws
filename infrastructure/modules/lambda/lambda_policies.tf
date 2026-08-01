@@ -398,6 +398,17 @@ resource "aws_iam_role_policy" "unzip_lambda_s3_policy" { # what the identity is
           "s3:PutObject"
         ],
         Resource = "${var.document_s3_bucket_arn}/*"
+      },
+      { # The bucket is SSE-KMS, so s3:GetObject alone returns AccessDenied. Decrypt unwraps
+        # the zip on download; GenerateDataKey is needed to write the extracted files back
+        # to unzipped/. This is the only pipeline role that writes, so the only one with it.
+        Sid    = "KMSAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ],
+        Resource = var.document_kms_key_arn
       }
     ]
   })
@@ -472,6 +483,14 @@ resource "aws_iam_role_policy" "write_to_dynamo_lambda_s3_policy" { # what the i
           "s3:GetObject"
         ],
         Resource = "${var.document_s3_bucket_arn}/*"
+      },
+      { # Decrypt only - this handler downloads the details CSV and never writes to S3.
+        Sid    = "KMSAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ],
+        Resource = var.document_kms_key_arn
       },
       { # Write and update items to the newly created DynamoDB table.
         Sid    = "DynamoDBAccessPolicy"
@@ -617,6 +636,16 @@ resource "aws_iam_role_policy" "compare_faces_lambda_policy" { # what the identi
 
         Resource = "${var.document_s3_bucket_arn}/*"
       },
+      { # Rekognition reads the license/selfie objects using THIS role's credentials, not a
+        # service principal of its own, so the Decrypt grant has to live here. Decrypt only:
+        # the handler never uploads, even though s3:PutObject above is granted and unused.
+        Sid    = "KMSAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ],
+        Resource = var.document_kms_key_arn
+      },
       { # Write and update items to the newly created DynamoDB table.
         Sid    = "DynamoDBAccessPolicy"
         Effect = "Allow"
@@ -714,6 +743,15 @@ resource "aws_iam_role_policy" "compare_details_lambda_policy" { # what the iden
         ],
 
         Resource = "${var.document_s3_bucket_arn}/*"
+      },
+      { # Same as compare-faces: Textract reads the license object with this role's
+        # credentials, so Decrypt belongs here. Read-only handler, so no GenerateDataKey.
+        Sid    = "KMSAccessPolicy"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ],
+        Resource = var.document_kms_key_arn
       },
       { # Update the LICENSE_DETAILS_MATCH attribute on the DynamoDB item.
         Sid    = "DynamoDBAccessPolicy"

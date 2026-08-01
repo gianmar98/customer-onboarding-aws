@@ -10,7 +10,12 @@ output "validate_license_api_name" {
 
 output "license_validation_invoke_url" {
   description = "Invoke URL for POST /license"
-  value       = "${aws_apigatewayv2_stage.default.invoke_url}/license"
+  # trimsuffix is load-bearing: the $default stage's invoke_url ends in "/", so plain
+  # interpolation produced ".../amazonaws.com//license". HTTP API normalizes the double
+  # slash for ROUTING but builds the IAM authorization ARN from the raw path, so the
+  # request was evaluated against ".../POST//license" and denied - a 403 that only
+  # appeared once authorization_type = "AWS_IAM" was turned on.
+  value = "${trimsuffix(aws_apigatewayv2_stage.default.invoke_url, "/")}/license"
 }
 
 output "validate_license_api_execution_arn" {

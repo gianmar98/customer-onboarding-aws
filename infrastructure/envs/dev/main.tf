@@ -32,6 +32,7 @@ provider "aws" {
 module "document_s3_bucket" {
   source                  = "../../modules/s3"
   document_s3_bucket_name = "${var.document_s3_bucket_name}${local.env_suffix}"
+  document_retention_days = var.document_retention_days
 }
 
 module "customer_metadata_dynamo_db_table" {
@@ -103,6 +104,7 @@ module "document_lambda" {
   #External
   document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn
   document_s3_bucket_name                        = module.document_s3_bucket.document_bucket_name
+  document_kms_key_arn                           = module.document_s3_bucket.document_kms_key_arn
   dynamodb_document_table_name                   = module.customer_metadata_dynamo_db_table.customer_metadata_table_name
   dynamodb_metadata_table_arn                    = module.customer_metadata_dynamo_db_table.customer_metadata_table_arn
   lambda_rekognition_face_comparison_policy_name = var.lambda_rekognition_face_comparison_policy_name

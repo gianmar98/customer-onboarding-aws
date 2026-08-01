@@ -12,12 +12,12 @@ Source: [`docs/aci-capstone1-serverless-backend.drawio`](docs/aci-capstone1-serv
 
 All resource names are stamped with `-${project_environment}` (e.g. `-dev`, `-prod`) at the env layer — see **Env-suffix naming** below. Each service below is provisioned by its own Terraform sub-module; see that module's `README.md` for resource-level detail, inputs/outputs, and gotchas.
 
-- **S3** (`infrastructure/modules/s3/`) — document storage bucket, TLS-only.
+- **S3** (`infrastructure/modules/s3/`) — document storage bucket: TLS-only, encrypted with its own KMS customer managed key (SSE-KMS + bucket keys), with lifecycle rules expiring `zipped/`/`unzipped/` objects after 30 days. It holds PII — selfies and driver's licenses — so nothing is retained indefinitely.
 - **DynamoDB** (`infrastructure/modules/dynamodb/`) — `CustomerMetadataTable`, keyed by `APP_UUID`.
 - **Lambda** (`infrastructure/modules/lambda/`) — six deployed functions. Four (unzip → write-to-dynamo → compare-faces → compare-details) are the live pipeline, sequenced by Step Functions; they run face-match (Rekognition) and ID-field extraction (Textract) checks, record results in DynamoDB, and notify via SNS. A validation/submit-license pair backs the API Gateway + SQS validation hop. A seventh, the monolithic document Lambda that did all of the above in one handler, is **commented out** — superseded by the pipeline, source retained.
 - **Step Functions** (`infrastructure/modules/stepFunction/`) — `DocumentStateMachine`, plus the S3 → EventBridge → Step Functions chain that starts an execution on every `zipped/` upload. X-Ray tracing is enabled end to end; `WriteToDynamoLambdaFunction` is additionally instrumented with AWS Lambda Powertools, so its S3 and DynamoDB calls show as individual subsegments (CloudWatch → Application Signals → Traces).
 - **SNS** (`infrastructure/modules/sns/`) — `ApplicationNotifications` topic with email subscription.
-- **API Gateway** (`infrastructure/modules/apiGateway/`) — `ValidateLicenseApi`, HTTP API exposing `POST /license` (internal mock validator, not a browser-facing API).
+- **API Gateway** (`infrastructure/modules/apiGateway/`) — `ValidateLicenseApi`, HTTP API exposing `POST /license` (internal mock validator, not a browser-facing API). The route requires IAM auth, so the submit-license Lambda SigV4-signs its call.
 - **SQS** (`infrastructure/modules/sqs/`) — `LicenseQueue` + dead-letter queue, carrying the state machine's final message to the submit-license Lambda.
 
 All resources deploy to `us-east-1`.
@@ -68,8 +68,9 @@ The other three pipeline Lambdas are untraced and appear as flat call targets �
 .
 ├── infrastructure/
 │   ├── modules/
-│   │   ├── s3/                # Document bucket + TLS-only policy
+│   │   ├── s3/                # Document bucket (SSE-KMS + lifecycle) + CMK + TLS-only policy
 │   │   │   ├── s3.tf
+│   │   │   ├── kms.tf          # customer managed key encrypting the bucket
 │   │   │   ├── s3_policies.tf  # TLS-only bucket policy
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
@@ -80,7 +81,7 @@ The other three pipeline Lambdas are untraced and appear as flat call targets �
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
 │   │   ├── lambda/            # IAM (roles + inline + managed), 7 Lambda functions, log groups, SQS trigger
-│   │   │   ├── lambda_policies.tf              # required_providers, roles, inline + managed policies, attachments, log groups
+│   │   │   ├── lambda_policies.tf              # roles, inline + managed policies, attachments, log groups
 │   │   │   ├── document_lambda_function.tf     # monolithic document function — entirely commented out
 │   │   │   ├── validate_lambda_function.tf     # validation function + archive_file
 │   │   │   ├── submit_license_lambda_function.tf # submit-license function + archive_file + SQS event source mapping

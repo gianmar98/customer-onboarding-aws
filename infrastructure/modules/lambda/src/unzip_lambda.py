@@ -11,6 +11,11 @@ import shutil
 unzipped_dir = "/tmp/unzipped/"
 unzipped_s3_prefix = "unzipped/"
 
+# added: zip-bomb / oversized-upload guards. A submission is a CSV + two photos,
+# so both ceilings are generous. /tmp is a fixed 512MB.
+MAX_ZIP_BYTES = 20 * 1024 * 1024            # compressed size, as it sits in S3
+MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024   # total extracted size
+
 #S3
 s3 = boto3.client('s3')
 
@@ -30,14 +35,31 @@ def unzip_object(bucket, key):
 
     Returns:
         list[str]: Filenames extracted into ``/tmp/unzipped/`` (top level only).
+
+    Raises:
+        ValueError: If the archive is over ``MAX_ZIP_BYTES`` compressed or
+            declares more than ``MAX_UNCOMPRESSED_BYTES`` extracted.
     """
     if not os.path.exists(unzipped_dir):  # added: extractall() fails if /tmp/unzipped/ doesn't exist yet. Guarding here makes the function safe to call on a cold container without relying on the handler having created it.
         os.makedirs(unzipped_dir)         # added: create the target dir before extracting into it.
 
     zip_name = os.path.basename(key)
     zip_fullpath = f"/tmp/{zip_name}"
+
+    zip_bytes = s3.head_object(Bucket=bucket, Key=key)['ContentLength']  # added: check the size on S3 before pulling it into /tmp, so an oversized upload never lands on disk.
+    if zip_bytes > MAX_ZIP_BYTES:
+        raise ValueError(f"zip too large: {zip_bytes} bytes > {MAX_ZIP_BYTES}")
+
     s3.download_file(bucket, key, zip_fullpath)
     with zipfile.ZipFile(zip_fullpath, 'r') as zip_ref:
+        # added: the compressed size above says nothing about a zip bomb (10KB -> 4GB),
+        # so check the declared extracted total before extractall() writes anything.
+        # ponytail: file_size comes from the archive's own central directory, so a
+        # hostile zip can understate it. Bounded per-member streaming would close that;
+        # overkill when the only writer is our own frontend and /tmp is wiped each run.
+        uncompressed = sum(i.file_size for i in zip_ref.infolist())
+        if uncompressed > MAX_UNCOMPRESSED_BYTES:
+            raise ValueError(f"archive expands too large: {uncompressed} bytes > {MAX_UNCOMPRESSED_BYTES}")
         zip_ref.extractall(unzipped_dir)
     os.remove(zip_fullpath)
 
