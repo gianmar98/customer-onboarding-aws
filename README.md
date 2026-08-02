@@ -4,7 +4,7 @@ AWS infrastructure for a serverless document-handling backend, provisioned entir
 
 ## Architecture
 
-![Serverless document-handling backend: S3 upload triggers EventBridge, which starts a Step Functions state machine orchestrating four Lambdas against Rekognition, Textract, DynamoDB and SQS](docs/Architecture.png)
+![Serverless document-handling backend: S3 upload triggers EventBridge, which starts a Step Functions state machine orchestrating four Lambdas against Rekognition, Textract, DynamoDB and SQS](docs/Architecture.png?v=2)
 
 Source: [`docs/aci-capstone1-serverless-backend.drawio`](docs/aci-capstone1-serverless-backend.drawio) — edit there and re-export, never edit the PNG. Conventions and layout rules for this diagram are documented in [`docs/draw_io.md`](docs/draw_io.md). Greyed boxes are commented out in Terraform and not deployed.
 
