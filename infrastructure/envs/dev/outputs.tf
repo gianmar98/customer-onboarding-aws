@@ -50,3 +50,13 @@ output "validate_sqs_queue_arn" {
   description = "ARN of the SQS license validate"
   value       = module.sqs.sqs_license_queue_arn
 }
+
+output "cognito_user_pool_name" {
+  description = "Name of the Cognito user pool"
+  value       = module.congito.cognito_user_pool_name
+}
+
+output "cognito_user_pool_client_name" {
+  description = "Name of the Cognito user pool Client"
+  value       = module.congito.cognito_user_pool_client_name
+}

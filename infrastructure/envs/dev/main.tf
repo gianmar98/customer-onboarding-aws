@@ -164,3 +164,11 @@ module "step_function" {
   document_s3_bucket_id   = module.document_s3_bucket.document_bucket_id
 
 }
+
+# FRONT END INFRASTRUCTURE
+
+module "congito" {
+  source                        = "../../modules/cognito"
+  cognito_user_pool_name        = "${var.cognito_user_pool_name}${local.env_suffix}"
+  cognito_user_pool_client_name = "${var.cognito_user_pool_client_name}${local.env_suffix}"
+}
