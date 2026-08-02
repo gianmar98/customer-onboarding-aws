@@ -80,7 +80,7 @@ The other three pipeline Lambdas are untraced and appear as flat call targets �
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
 │   │   │   └── README.md
-│   │   ├── lambda/            # IAM (roles + inline + managed), 7 Lambda functions, log groups, SQS trigger
+│   │   ├── lambda/            # IAM (roles + inline + managed), 8 Lambda functions, log groups, SQS trigger
 │   │   │   ├── lambda_policies.tf              # roles, inline + managed policies, attachments, log groups
 │   │   │   ├── document_lambda_function.tf     # monolithic document function — entirely commented out
 │   │   │   ├── validate_lambda_function.tf     # validation function + archive_file
@@ -89,7 +89,8 @@ The other three pipeline Lambdas are untraced and appear as flat call targets �
 │   │   │   ├── write_to_dynamo_lambda_function.tf # write-to-dynamo function + archive_file (invoked by the state machine)
 │   │   │   ├── compare_faces_lambda_function.tf   # compare-faces function + archive_file (invoked by the state machine)
 │   │   │   ├── compare_details_lambda_function.tf # compare-details function + archive_file (invoked by the state machine)
-│   │   │   ├── src/                            # Python handlers (s3_upload.py, validate_lambda.py, submit_license.py, unzip_lambda.py, write_to_dynamo_lambda.py, compare_faces_lambda.py, compare_details_lambda.py)
+│   │   │   ├── app_api_lambda_function.tf      # browser-facing app API function + archive_file (no trigger yet — see modules/lambda/README.md)
+│   │   │   ├── src/                            # Python handlers (s3_upload.py, validate_lambda.py, submit_license.py, unzip_lambda.py, write_to_dynamo_lambda.py, compare_faces_lambda.py, compare_details_lambda.py, app_api_lambda.py)
 │   │   │   ├── build/                      # archive_file zip output (gitignored)
 │   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf

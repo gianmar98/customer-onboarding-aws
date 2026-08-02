@@ -189,6 +189,24 @@ variable "compare_details_lambda_policy_name" {
   type        = string
 }
 
+#APP API lambda function
+variable "app_api_lambda_function_name" {
+  description = "Name of the browser-facing app API lambda function. Not part of the document pipeline."
+  type        = string
+}
+variable "app_api_lambda_function_role_name" {
+  description = "Name of the role for the lambda function serving the browser's upload-url and status calls"
+  type        = string
+}
+variable "app_api_lambda_cloudwatch_logs_policy_name" {
+  description = "name of the cloudwatch logs policy for the app API lambda function"
+  type        = string
+}
+variable "app_api_lambda_policy_name" {
+  description = "Name of the inline policy attached to the Lambda execution role"
+  type        = string
+}
+
 # DynamoDB ---------------------------------------------------------------------------
 variable "customer_metadata_dynamo_db_table_name" {
   description = "Name of the customer metadata DynamoDB table"

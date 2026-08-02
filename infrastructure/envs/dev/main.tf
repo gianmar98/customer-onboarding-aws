@@ -103,6 +103,12 @@ module "document_lambda" {
   compare_details_lambda_cloudwatch_logs_policy_name = "${var.compare_details_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
   compare_details_lambda_policy_name                 = "${var.compare_details_lambda_policy_name}${local.env_suffix}"
 
+  #App API Lambda (browser-facing, not part of the document pipeline)
+  app_api_lambda_function_name               = "${var.app_api_lambda_function_name}${local.env_suffix}"
+  app_api_lambda_function_role_name          = "${var.app_api_lambda_function_role_name}${local.env_suffix}"
+  app_api_lambda_cloudwatch_logs_policy_name = "${var.app_api_lambda_cloudwatch_logs_policy_name}${local.env_suffix}"
+  app_api_lambda_policy_name                 = "${var.app_api_lambda_policy_name}${local.env_suffix}"
+
   #External
   document_s3_bucket_arn                         = module.document_s3_bucket.document_bucket_arn
   document_s3_bucket_name                        = module.document_s3_bucket.document_bucket_name
