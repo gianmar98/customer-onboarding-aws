@@ -33,6 +33,14 @@ variable "document_lambda_function_name" {
 variable "lambda_functions_timeout" {
   description = "The max mount of time function should run for"
   type        = number
+
+  # Ceiling is 20, not Lambda's 900: modules/sqs hardcodes visibility_timeout_seconds = 120,
+  # which must stay >= 6x the consumer timeout or SQS redelivers mid-invocation and the
+  # submit-license Lambda double-processes the message. 120 / 6 = 20.
+  validation {
+    condition     = var.lambda_functions_timeout > 0 && var.lambda_functions_timeout <= 20
+    error_message = "lambda_functions_timeout must be between 1 and 20 seconds (modules/sqs visibility_timeout_seconds = 120 must remain >= 6x this value)."
+  }
 }
 variable "lambda_rekognition_face_comparison_policy_name" {
   description = "This will be the name of the managed policy so lambda can compare faces"

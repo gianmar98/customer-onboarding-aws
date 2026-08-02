@@ -10,6 +10,13 @@ variable "project_region" {
 variable "project_environment" {
   description = "Environment name (e.g., dev, prod) — used in default_tags"
   type        = string
+
+  # Stamped onto every resource name via local.env_suffix, so a typo silently
+  # builds a parallel stack of misnamed resources rather than failing.
+  validation {
+    condition     = contains(["dev", "prod"], var.project_environment)
+    error_message = "project_environment must be dev or prod."
+  }
 }
 
 variable "project_name" {
