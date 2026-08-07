@@ -136,6 +136,12 @@ module "api_gateway" {
   #External
   validate_lambda_function_name = "${var.validate_lambda_function_name}${local.env_suffix}"
   validate_lambda_invoke_arn    = module.document_lambda.validation_lambda_invoke_arn
+  app_api_invoke_arn            = module.document_lambda.app_api_lambda_invoke_arn
+  app_api_lambda_function_name  = module.document_lambda.app_api_lambda_function_name
+
+  cognito_user_pool_client_id = module.congito.user_pool_client_id
+  cognito_issuer              = module.congito.issuer
+  api_cors_allow_origins      = ["http://localhost:3000"]
 }
 
 module "sqs" {

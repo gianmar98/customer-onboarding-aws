@@ -27,7 +27,7 @@ resource "aws_lambda_function" "app_api_lambda_function" {
     log_format = "Text"
   }
 
-  # No TOPIC or SQS_URL: this function publishes nothing and consumes nothing.
+  # This function publishes nothing and consumes nothing.
   environment {
     variables = {
       BUCKET = var.document_s3_bucket_name
@@ -36,6 +36,4 @@ resource "aws_lambda_function" "app_api_lambda_function" {
   }
 }
 
-# No trigger resource here. API Gateway invokes this function, so the matching
-# aws_lambda_permission lives in modules/apiGateway/ alongside the route and
-# integration that reference it - same as apigw_invoke_validate does today.
+# API Gateway invokes this function, so the matching
